@@ -15,7 +15,7 @@ public class Flywheel {
 	}
 
 	public void spinFlywheel(double rpm) {
-		double rps = rpm / 60.0; // rot p/s i think 
+		double rps = rpm / 60.0; // rot p/sn 
 		a1.setControl(new VelocityVoltage(rps));
 		a2.setControl(new VelocityVoltage(rps));
 		b1.setControl(new VelocityVoltage(-rps));

@@ -55,6 +55,8 @@ public class LookupTable extends LifecycleSubsystem {
 			return new double[] {last.rpm, last.hoodHeight};
 		}
 
+		// essentially its taking the relative avg between two points so if: 
+		// 1m = 2000rpm and 2m = 3000rpm then 1.7m = 2700rpm instead of 2500rpm does this make sense
 		for (int i = 1; i < points.size(); i++) {
 			var low = points.get(i - 1);
 			var high = points.get(i);
@@ -65,9 +67,10 @@ public class LookupTable extends LifecycleSubsystem {
 				return new double[] {high.rpm, high.hoodHeight};
 			}
 			if (distanceMeters > low.distanceMeters && distanceMeters < high.distanceMeters) {
-				var rpm = (low.rpm + high.rpm) / 2.0;
-				var hood = (low.hoodHeight + high.hoodHeight) / 2.0;
-				return new double[] {rpm, hood};
+			double t = (distanceMeters - low.distanceMeters) / (high.distanceMeters - low.distanceMeters);
+			var rpm = low.rpm + t * (high.rpm - low.rpm);
+			var hood = low.hoodHeight + t * (high.hoodHeight - low.hoodHeight);
+			return new double[] {rpm, hood};
 			}
 		}
 

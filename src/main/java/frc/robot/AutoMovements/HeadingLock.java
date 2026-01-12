@@ -14,7 +14,6 @@ public class HeadingLock extends StateMachine<HeadingLock.HeadingLockState> {
   private final LocalizationSubsystem localization;
   private final SwerveSubsystem swerve;
 
-  // Store targets as points; orientation is irrelevant for heading lock
   private Translation2d redTargetPoint = new Translation2d();
   private Translation2d blueTargetPoint = new Translation2d();
   private double turretOffsetDegrees = 37.0; 
@@ -31,7 +30,6 @@ public class HeadingLock extends StateMachine<HeadingLock.HeadingLockState> {
     this.swerve = swerve;
   }
 
-  // Preferred point-based setters
   public void setRedTargetPoint(Translation2d point) {
     this.redTargetPoint = point;
   }
@@ -40,7 +38,6 @@ public class HeadingLock extends StateMachine<HeadingLock.HeadingLockState> {
     this.blueTargetPoint = point;
   }
 
-  // Backwards-compatible pose-based setters (ignore rotation)
   public void setRedTargetPose(Pose2d pose) {
     this.redTargetPoint = pose.getTranslation();
   }
@@ -49,7 +46,6 @@ public class HeadingLock extends StateMachine<HeadingLock.HeadingLockState> {
     this.blueTargetPoint = pose.getTranslation();
   }
 
-  // Accessors for other components that still expect a Pose2d
   public Pose2d getRedTargetPose() {
     return new Pose2d(redTargetPoint, Rotation2d.kZero);
   }
@@ -58,7 +54,6 @@ public class HeadingLock extends StateMachine<HeadingLock.HeadingLockState> {
     return new Pose2d(blueTargetPoint, Rotation2d.kZero);
   }
 
-  // Optional point getters
   public Translation2d getRedTargetPoint() {
     return redTargetPoint;
   }

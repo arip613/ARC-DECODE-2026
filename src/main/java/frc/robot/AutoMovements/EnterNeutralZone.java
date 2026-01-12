@@ -23,7 +23,6 @@ public class EnterNeutralZone {
 	private final Trailblazer trailblazer;
 	private State state = State.atNeutralZone;
 
-		// Points are centralized in FieldPoints
 
 	public EnterNeutralZone(LocalizationSubsystem localization, Trailblazer trailblazer) {
 		this.localization = localization;
@@ -36,17 +35,13 @@ public class EnterNeutralZone {
 
 		public void setRA1(Pose2d pose) { FieldPoints.setRA1(pose); }
 		public void setRB1(Pose2d pose) { FieldPoints.setRB1(pose); }
-		public void setRC1(Pose2d pose) { FieldPoints.setRC1(pose); }
 		public void setRA2(Pose2d pose) { FieldPoints.setRA2(pose); }
 		public void setRB2(Pose2d pose) { FieldPoints.setRB2(pose); }
-		public void setRC2(Pose2d pose) { FieldPoints.setRC2(pose); }
 
 		public void setBA1(Pose2d pose) { FieldPoints.setBA1(pose); }
 		public void setBB1(Pose2d pose) { FieldPoints.setBB1(pose); }
-		public void setBC1(Pose2d pose) { FieldPoints.setBC1(pose); }
 		public void setBA2(Pose2d pose) { FieldPoints.setBA2(pose); }
 		public void setBB2(Pose2d pose) { FieldPoints.setBB2(pose); }
-		public void setBC2(Pose2d pose) { FieldPoints.setBC2(pose); }
 
 
 		public Command omwtoNeutralZone_red() {
@@ -54,19 +49,14 @@ public class EnterNeutralZone {
 
 			var segR1_1 = new AutoSegment(constraints, new AutoPoint(localization::getPose), new AutoPoint(FieldPoints.getRA1()));
 			var segR1_2 = new AutoSegment(constraints, new AutoPoint(FieldPoints.getRA1()), new AutoPoint(FieldPoints.getRB1()));
-			var segR1_3 = new AutoSegment(constraints, new AutoPoint(FieldPoints.getRB1()), new AutoPoint(FieldPoints.getRC1()));
 			var series1 = trailblazer.followSegment(segR1_1, true)
 					.andThen(trailblazer.followSegment(segR1_2, true))
-					.andThen(trailblazer.followSegment(segR1_3, true))
 					.withName("omwtoNeutralZone_red_series1");
 
-			// Build series 2: A2 -> B2 -> C2
 			var segR2_1 = new AutoSegment(constraints, new AutoPoint(localization::getPose), new AutoPoint(FieldPoints.getRA2()));
 			var segR2_2 = new AutoSegment(constraints, new AutoPoint(FieldPoints.getRA2()), new AutoPoint(FieldPoints.getRB2()));
-			var segR2_3 = new AutoSegment(constraints, new AutoPoint(FieldPoints.getRB2()), new AutoPoint(FieldPoints.getRC2()));
 			var series2 = trailblazer.followSegment(segR2_1, true)
 					.andThen(trailblazer.followSegment(segR2_2, true))
-					.andThen(trailblazer.followSegment(segR2_3, true))
 					.withName("omwtoNeutralZone_red_series2");
 
 			var chooseSeries1 = (java.util.function.BooleanSupplier) () -> {
@@ -90,18 +80,14 @@ public class EnterNeutralZone {
 
 			var segB1_1 = new AutoSegment(constraints, new AutoPoint(localization::getPose), new AutoPoint(FieldPoints.getBA1()));
 			var segB1_2 = new AutoSegment(constraints, new AutoPoint(FieldPoints.getBA1()), new AutoPoint(FieldPoints.getBB1()));
-			var segB1_3 = new AutoSegment(constraints, new AutoPoint(FieldPoints.getBB1()), new AutoPoint(FieldPoints.getBC1()));
 			var series1 = trailblazer.followSegment(segB1_1, true)
 					.andThen(trailblazer.followSegment(segB1_2, true))
-					.andThen(trailblazer.followSegment(segB1_3, true))
 					.withName("omwtoNeutralZone_blue_series1");
 
 			var segB2_1 = new AutoSegment(constraints, new AutoPoint(localization::getPose), new AutoPoint(FieldPoints.getBA2()));
 			var segB2_2 = new AutoSegment(constraints, new AutoPoint(FieldPoints.getBA2()), new AutoPoint(FieldPoints.getBB2()));
-			var segB2_3 = new AutoSegment(constraints, new AutoPoint(FieldPoints.getBB2()), new AutoPoint(FieldPoints.getBC2()));
 			var series2 = trailblazer.followSegment(segB2_1, true)
 					.andThen(trailblazer.followSegment(segB2_2, true))
-					.andThen(trailblazer.followSegment(segB2_3, true))
 					.withName("omwtoNeutralZone_blue_series2");
 
 			var chooseSeries1 = (java.util.function.BooleanSupplier) () -> {
