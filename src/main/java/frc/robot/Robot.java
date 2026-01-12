@@ -9,9 +9,9 @@ import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.imu.ImuSubsystem;
 import frc.robot.localization.LocalizationSubsystem;
-import frc.robot.otherStuff.HeadingLock;
-import frc.robot.otherStuff.OutpostSetpoint;
 import frc.robot.swerve.SwerveSubsystem;
+import frc.robot.AutoMovements.HeadingLock;
+import frc.robot.AutoMovements.OutpostSetpoint;
 import frc.robot.FlywheelSubsystem.DistanceCalc;
 import frc.robot.FlywheelSubsystem.LookupTable;
 import frc.robot.autos.AutoPoint;
@@ -25,8 +25,7 @@ import frc.robot.vision.VisionSubsystem;
 import frc.robot.vision.limelight.Limelight;
 import frc.robot.vision.limelight.LimelightModel;
 import frc.robot.vision.limelight.LimelightState;
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
+import frc.robot.AutoMovements.FieldPoints;
 import frc.robot.currentPhase.phaseTimer;
 
 public class Robot extends TimedRobot {
@@ -48,6 +47,7 @@ public class Robot extends TimedRobot {
   private final HeadingLock headingLock = new HeadingLock(localization, swerve);
   private final OutpostSetpoint outpost = new OutpostSetpoint(localization, trailblazer);
   private final DistanceCalc distanceCalc = new DistanceCalc(localization, headingLock);
+  @SuppressWarnings("unused")
   private final LookupTable turretLookup = new LookupTable(distanceCalc);
   private final phaseTimer phaseTimer = new phaseTimer();
   
@@ -59,8 +59,8 @@ public class Robot extends TimedRobot {
 
   LifecycleSubsystemManager.ready();
 
-  headingLock.setRedTargetPose(new Pose2d(1.0, 3.0, Rotation2d.fromDegrees(4.0)));
-  headingLock.setBlueTargetPose(new Pose2d(5.0, 12.0, Rotation2d.fromDegrees(1.0)));
+  headingLock.setRedTargetPoint(FieldPoints.getHeadingLockRedPoint());
+  headingLock.setBlueTargetPoint(FieldPoints.getHeadingLockBluePoint());
 
   configureBindings();
 

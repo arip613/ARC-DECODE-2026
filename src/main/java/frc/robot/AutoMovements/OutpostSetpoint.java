@@ -1,7 +1,6 @@
-package frc.robot.otherStuff;
+package frc.robot.AutoMovements;
 
 import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.autos.AutoPoint;
@@ -18,29 +17,21 @@ public class OutpostSetpoint {
 		atOutpost
 	}
 
-	private final LocalizationSubsystem localization;
-	private final Trailblazer trailblazer;
-	private State state = State.atOutpost;
-
-	private Pose2d redSetpoint = new Pose2d(9.0, 9.0, Rotation2d.fromDegrees(0.0));
-	private Pose2d blueSetpoint = new Pose2d(10.0, 10.0, Rotation2d.fromDegrees(180));
+		private final LocalizationSubsystem localization;
+		private final Trailblazer trailblazer;
+		private State state = State.atOutpost;
 
 	public OutpostSetpoint(LocalizationSubsystem localization, Trailblazer trailblazer) {
 		this.localization = localization;
 		this.trailblazer = trailblazer;
 	}
 
-	public Pose2d getAllianceSetpoint() {
-		return FmsSubsystem.isRedAlliance() ? redSetpoint : blueSetpoint;
-	}
+		public Pose2d getAllianceSetpoint() {
+			return FmsSubsystem.isRedAlliance() ? FieldPoints.getOutpostRed() : FieldPoints.getOutpostBlue();
+		}
 
-	public void setRedSetpoint(Pose2d pose) {
-		this.redSetpoint = pose;
-	}
-
-	public void setBlueSetpoint(Pose2d pose) {
-		this.blueSetpoint = pose;
-	}
+		public void setRedSetpoint(Pose2d pose) { FieldPoints.setOutpostRed(pose); }
+		public void setBlueSetpoint(Pose2d pose) { FieldPoints.setOutpostBlue(pose); }
 
 	public State getState() {
 		return state;

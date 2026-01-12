@@ -1,8 +1,8 @@
-package frc.robot.otherStuff;
+package frc.robot.AutoMovements;
 
 import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-import edu.wpi.first.wpilibj2.command.Commands;
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
 import frc.robot.fms.FmsSubsystem;
 import frc.robot.localization.LocalizationSubsystem;
 import frc.robot.swerve.SwerveSubsystem;
@@ -14,9 +14,10 @@ public class HeadingLock extends StateMachine<HeadingLock.HeadingLockState> {
   private final LocalizationSubsystem localization;
   private final SwerveSubsystem swerve;
 
-  private Pose2d redTargetPose = new Pose2d();
-  private Pose2d blueTargetPose = new Pose2d();
-  private double turretOffsetDegrees = 30.0; // tell me the actual offset later dont forget ari im talking to myself
+  // Store targets as points; orientation is irrelevant for heading lock
+  private Translation2d redTargetPoint = new Translation2d();
+  private Translation2d blueTargetPoint = new Translation2d();
+  private double turretOffsetDegrees = 37.0; 
 
   public enum HeadingLockState {
     DISABLED,
@@ -30,20 +31,40 @@ public class HeadingLock extends StateMachine<HeadingLock.HeadingLockState> {
     this.swerve = swerve;
   }
 
+  // Preferred point-based setters
+  public void setRedTargetPoint(Translation2d point) {
+    this.redTargetPoint = point;
+  }
+
+  public void setBlueTargetPoint(Translation2d point) {
+    this.blueTargetPoint = point;
+  }
+
+  // Backwards-compatible pose-based setters (ignore rotation)
   public void setRedTargetPose(Pose2d pose) {
-    this.redTargetPose = pose;
+    this.redTargetPoint = pose.getTranslation();
   }
 
   public void setBlueTargetPose(Pose2d pose) {
-    this.blueTargetPose = pose;
+    this.blueTargetPoint = pose.getTranslation();
   }
 
+  // Accessors for other components that still expect a Pose2d
   public Pose2d getRedTargetPose() {
-    return redTargetPose;
+    return new Pose2d(redTargetPoint, Rotation2d.kZero);
   }
 
   public Pose2d getBlueTargetPose() {
-    return blueTargetPose;
+    return new Pose2d(blueTargetPoint, Rotation2d.kZero);
+  }
+
+  // Optional point getters
+  public Translation2d getRedTargetPoint() {
+    return redTargetPoint;
+  }
+
+  public Translation2d getBlueTargetPoint() {
+    return blueTargetPoint;
   }
 
   public void setTurretOffsetDegrees(double offsetDegrees) {
@@ -88,18 +109,18 @@ public class HeadingLock extends StateMachine<HeadingLock.HeadingLockState> {
     super.robotPeriodic();
 
     switch (getState()) {
-      case RED_LOCK -> faceTarget(redTargetPose);
-      case BLUE_LOCK -> faceTarget(blueTargetPose);
+      case RED_LOCK -> faceTarget(redTargetPoint);
+      case BLUE_LOCK -> faceTarget(blueTargetPoint);
       case DISABLED -> {
       }
     }
   }
 
-  private void faceTarget(Pose2d target) {
+  private void faceTarget(Translation2d targetPoint) {
     var robotPose = localization.getPose();
-    var dx = target.getX() - robotPose.getX();
-    var dy = target.getY() - robotPose.getY();
-    var angleRadians = Math.atan2(dy, dx); //i didnt use swerve gens bc of the offset of the turret and I didnt wanna think abt that
+    var dx = targetPoint.getX() - robotPose.getX();
+    var dy = targetPoint.getY() - robotPose.getY();
+    var angleRadians = Math.atan2(dy, dx); // turret offset handled below
     var angleDegrees = Math.toDegrees(angleRadians);
     swerve.snapsDriveRequest(angleDegrees + turretOffsetDegrees);
   }
