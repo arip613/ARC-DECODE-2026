@@ -10,6 +10,7 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.imu.ImuSubsystem;
 import frc.robot.localization.LocalizationSubsystem;
 import frc.robot.swerve.SwerveSubsystem;
+import frc.robot.Turret.DistanceCalc;
 import frc.robot.autos.AutoPoint;
 import frc.robot.autos.AutoSegment;
 import frc.robot.autos.Points;
@@ -42,7 +43,7 @@ public class Robot extends TimedRobot {
   private final LocalizationSubsystem localization = new LocalizationSubsystem(imu, vision, swerve);
   private final Trailblazer trailblazer = new Trailblazer(swerve, localization);
   private final HeadingLockSubsystem headingLock = new HeadingLockSubsystem(localization, swerve);
-
+  
   public Robot() {
 
     DriverStation.silenceJoystickConnectionWarning(RobotBase.isSimulation());
@@ -51,7 +52,6 @@ public class Robot extends TimedRobot {
 
   LifecycleSubsystemManager.ready();
 
-  // Set heading lock targets: Red -> (1, 3, 4°), Blue -> (5, 12, 1°)
   headingLock.setRedTargetPose(new Pose2d(1.0, 3.0, Rotation2d.fromDegrees(4.0)));
   headingLock.setBlueTargetPose(new Pose2d(5.0, 12.0, Rotation2d.fromDegrees(1.0)));
 

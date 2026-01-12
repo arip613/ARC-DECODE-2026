@@ -9,18 +9,11 @@ import frc.robot.swerve.SwerveSubsystem;
 import frc.robot.util.scheduling.SubsystemPriority;
 import frc.robot.util.state_machines.StateMachine;
 
-/**
- * HeadingLockSubsystem keeps the robot facing a field point.
- *
- * - RED_LOCK / BLUE_LOCK states face their respective target poses continuously.
- * - DISABLED state does nothing.
- * - Targets are configurable via setters; optional dashboard toggles included.
- */
+
 public class HeadingLockSubsystem extends StateMachine<HeadingLockSubsystem.HeadingLockState> {
   private final LocalizationSubsystem localization;
   private final SwerveSubsystem swerve;
 
-  // Default targets; update these via setters to match your field coordinates
   private Pose2d redTargetPose = new Pose2d();
   private Pose2d blueTargetPose = new Pose2d();
 
@@ -34,17 +27,6 @@ public class HeadingLockSubsystem extends StateMachine<HeadingLockSubsystem.Head
     super(SubsystemPriority.SWERVE, HeadingLockState.DISABLED);
     this.localization = localization;
     this.swerve = swerve;
-
-    // Optional SmartDashboard controls
-    SmartDashboard.putData(
-        "HeadingLock/EnableRed",
-        Commands.runOnce(this::enableRedLock).ignoringDisable(true));
-    SmartDashboard.putData(
-        "HeadingLock/EnableBlue",
-        Commands.runOnce(this::enableBlueLock).ignoringDisable(true));
-    SmartDashboard.putData(
-        "HeadingLock/Disable",
-        Commands.runOnce(this::disableLock).ignoringDisable(true));
   }
 
   public void setRedTargetPose(Pose2d pose) {
@@ -53,6 +35,14 @@ public class HeadingLockSubsystem extends StateMachine<HeadingLockSubsystem.Head
 
   public void setBlueTargetPose(Pose2d pose) {
     this.blueTargetPose = pose;
+  }
+
+  public Pose2d getRedTargetPose() {
+    return redTargetPose;
+  }
+
+  public Pose2d getBlueTargetPose() {
+    return blueTargetPose;
   }
 
   public void enableForAlliance() {
@@ -77,7 +67,6 @@ public class HeadingLockSubsystem extends StateMachine<HeadingLockSubsystem.Head
 
   @Override
   protected HeadingLockState getNextState(HeadingLockState current) {
-    // Keep lock modes during auto/teleop unless explicitly disabled
     switch (current) {
       case RED_LOCK:
         return HeadingLockState.RED_LOCK;
@@ -97,7 +86,6 @@ public class HeadingLockSubsystem extends StateMachine<HeadingLockSubsystem.Head
       case RED_LOCK -> faceTarget(redTargetPose);
       case BLUE_LOCK -> faceTarget(blueTargetPose);
       case DISABLED -> {
-        // No-op
       }
     }
   }
@@ -108,8 +96,6 @@ public class HeadingLockSubsystem extends StateMachine<HeadingLockSubsystem.Head
     var dy = target.getY() - robotPose.getY();
     var angleRadians = Math.atan2(dy, dx);
     var angleDegrees = Math.toDegrees(angleRadians);
-
-    // Request snaps mode so swerve uses the FacingAngle controller
     swerve.snapsDriveRequest(angleDegrees);
   }
 }
