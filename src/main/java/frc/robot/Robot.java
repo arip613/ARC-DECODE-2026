@@ -29,7 +29,6 @@ import frc.robot.AutoMovements.FieldPoints;
 import frc.robot.currentPhase.phaseTimer;
 
 public class Robot extends TimedRobot {
-  // Hard-coded alliance assumption for autonomous start pose; set true for Red, false for Blue.
   private static final boolean ASSUME_RED_ALLIANCE = false;
   private Command autonomousCommand = Commands.none();
   private final Hardware hardware = new Hardware();
@@ -117,7 +116,6 @@ public class Robot extends TimedRobot {
 
     ElasticLayoutUtil.onEnable();
 
-    // Mark the start of Teleop for phase timing
     phaseTimer.markTeleopStart();
   }
 

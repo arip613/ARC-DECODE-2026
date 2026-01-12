@@ -11,10 +11,7 @@ import frc.robot.util.scheduling.SubsystemPriority;
 import frc.robot.util.state_machines.StateMachine;
 import frc.robot.vision.CameraHealth;
 
-/**
- * Simplified Limelight wrapper for a two-camera setup that only performs AprilTag-based
- * odometry updates. All non-tag features (game pieces, handoff, LEDs, calibration) are removed.
- */
+
 public class Limelight extends StateMachine<LimelightState> {
   private static final double IS_OFFLINE_TIMEOUT = 3.0;
   private static final double USE_MT1_DISTANCE_THRESHOLD = Units.inchesToMeters(40.0);
@@ -33,7 +30,6 @@ public class Limelight extends StateMachine<LimelightState> {
 
   private double angularVelocity = 0.0;
 
-  // Retained for API compatibility with VisionSubsystem's helper
   private final int[] closestScoringReefTag = {0};
   private OptionalTagResult tagResult = new OptionalTagResult();
 
@@ -61,9 +57,7 @@ public class Limelight extends StateMachine<LimelightState> {
     setStateFromRequest(state);
   }
 
-  /**
-   * Get tag-based pose estimate suitable for odometry fusion.
-   */
+
   public OptionalTagResult getTagResult() {
     var mT2Estimate = LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(limelightTableName);
     if (mT2Estimate == null) {
@@ -99,7 +93,6 @@ public class Limelight extends StateMachine<LimelightState> {
     }
 
     var mt2Pose = mT2Estimate.pose;
-    // Guard against limelight losing power and reporting zero pose
     if (mt2Pose.getX() == 0.0 && mt2Pose.getY() == 0.0) {
       updateHealth(tagResult.empty());
       return tagResult.empty();
@@ -114,7 +107,6 @@ public class Limelight extends StateMachine<LimelightState> {
 
       devs = VecBuilder.fill(xyDev, xyDev, thetaDev);
 
-      // Prefer MT1 rotation when close to tags for better heading
       if (distance <= USE_MT1_DISTANCE_THRESHOLD) {
         var mT1Result = LimelightHelpers.getBotPoseEstimate_wpiBlue(limelightTableName);
         if (mT1Result != null

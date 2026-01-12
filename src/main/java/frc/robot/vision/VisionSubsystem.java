@@ -92,12 +92,10 @@ public class VisionSubsystem extends StateMachine<VisionState> {
 
   @Override
   protected void afterTransition(VisionState newState) {
-    // In the simplified setup, always run both cameras in TAGS mode
     leftLimelight.setState(LimelightState.TAGS);
     rightLimelight.setState(LimelightState.TAGS);
   }
 
-  // Removed game piece detection; only tag-based odometry supported
 
   @Override
   public void robotPeriodic() {
@@ -106,7 +104,6 @@ public class VisionSubsystem extends StateMachine<VisionState> {
     leftLimelight.sendImuData(robotHeading, angularVelocity, 0.0, 0.0, 0.0, 0.0);
     rightLimelight.sendImuData(robotHeading, angularVelocity, 0.0, 0.0, 0.0, 0.0);
 
-    // Telemetry/calibration removed to simplify dependencies
   }
 
   public void setClosestScoringReefAndPipe(int tagID) {

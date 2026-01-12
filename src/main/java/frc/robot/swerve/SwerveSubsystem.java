@@ -56,7 +56,6 @@ public class SwerveSubsystem extends StateMachine<SwerveState> {
 
   private final SwerveRequest.FieldCentric drive =
       new SwerveRequest.FieldCentric()
-          // I want field-centric driving in open loop
           .withDriveRequestType(DriveRequestType.OpenLoopVoltage)
           .withDeadband(MaxSpeed * 0.015)
           .withRotationalDeadband(maxAngularRate * 0.015);
@@ -78,21 +77,11 @@ public class SwerveSubsystem extends StateMachine<SwerveState> {
   private ChassisSpeeds fieldRelativeSpeeds = new ChassisSpeeds();
   private double goalSnapAngle = 0;
 
-  /** The latest requested teleop speeds. */
   private ChassisSpeeds teleopSpeeds = new ChassisSpeeds();
 
   private ChassisSpeeds autoSpeeds = new ChassisSpeeds();
 
-  @SuppressWarnings("unused")
-  private ChassisSpeeds coralAssistSpeedsOffset = new ChassisSpeeds();
-
-  @SuppressWarnings("unused")
-  private ChassisSpeeds autoAlignSpeeds = new ChassisSpeeds();
-
-  @SuppressWarnings("unused")
-  private final ChassisSpeeds previousSpeeds = new ChassisSpeeds();
-  @SuppressWarnings("unused")
-  private static final double PREVIOUS_TIMESTAMP = 0.0;
+  
   private final Timer timeSinceAutoSpeeds = new Timer();
   private double teleopSlowModePercent = 0.0;
   private double rawControllerXValue = 0.0;
@@ -113,9 +102,7 @@ public class SwerveSubsystem extends StateMachine<SwerveState> {
   public void setSnapToAngle(double angle) {
     goalSnapAngle = angle;
 
-    // We don't necessarily set auto swerve speeds every loop, so this ensures we are always snapped
-    // to the right angle during auto. Teleop doesn't need this since teleop speeds are constantly
-    // fed into swerve.
+
     if (DriverStation.isAutonomous()) {
       sendSwerveRequest();
     }
@@ -147,18 +134,10 @@ public class SwerveSubsystem extends StateMachine<SwerveState> {
         ChassisSpeeds.fromRobotRelativeSpeeds(speeds, drivetrainState.Pose.getRotation()));
   }
 
-  public void setFieldRelativeCoralAssistSpeedsOffset(ChassisSpeeds speeds) {
-    coralAssistSpeedsOffset = speeds;
-  }
-
-  public void setAutoAlignSpeeds(ChassisSpeeds speeds) {
-    autoAlignSpeeds = speeds;
-    sendSwerveRequest();
-  }
+ 
 
   @Override
   protected SwerveState getNextState(SwerveState currentState) {
-    // Ensure that we are in an auto state during auto, and a teleop state during teleop
     return switch (currentState) {
       case AUTO, TELEOP -> DriverStation.isAutonomous() ? SwerveState.AUTO : SwerveState.TELEOP;
       case AUTO_SNAPS, TELEOP_SNAPS ->
@@ -196,7 +175,6 @@ public class SwerveSubsystem extends StateMachine<SwerveState> {
       leftY *= -1.0;
     }
 
-  // Telemetry removed to simplify dependencies
     Translation2d mappedpose = ControllerHelpers.fromCircularDiscCoordinates(leftX, leftY);
     double mappedX = mappedpose.getX();
     double mappedY = mappedpose.getY();
@@ -322,7 +300,6 @@ public class SwerveSubsystem extends StateMachine<SwerveState> {
               double deltaTime = currentTime - lastSimTime;
               lastSimTime = currentTime;
 
-              /* use the measured time delta, get battery voltage from WPILib */
               drivetrain.updateSimState(deltaTime, RobotController.getBatteryVoltage());
             });
     simNotifier.startPeriodic(SIM_LOOP_PERIOD);
