@@ -1,9 +1,9 @@
-package frc.robot.Turret;
+package frc.robot.FlywheelSubsystem;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import frc.robot.LockSubsystem.HeadingLock;
 import frc.robot.fms.FmsSubsystem;
-import frc.robot.heading_lock.HeadingLockSubsystem;
 import frc.robot.localization.LocalizationSubsystem;
 import frc.robot.util.scheduling.LifecycleSubsystem;
 import frc.robot.util.scheduling.SubsystemPriority;
@@ -11,9 +11,9 @@ import frc.robot.util.scheduling.SubsystemPriority;
 
 public class DistanceCalc extends LifecycleSubsystem {
   private final LocalizationSubsystem localization;
-  private final HeadingLockSubsystem headingLock;
+  private final HeadingLock headingLock;
 
-  public DistanceCalc(LocalizationSubsystem localization, HeadingLockSubsystem headingLock) {
+  public DistanceCalc(LocalizationSubsystem localization, HeadingLock headingLock) {
     super(SubsystemPriority.LOCALIZATION);
     this.localization = localization;
     this.headingLock = headingLock;

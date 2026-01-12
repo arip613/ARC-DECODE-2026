@@ -10,7 +10,10 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.imu.ImuSubsystem;
 import frc.robot.localization.LocalizationSubsystem;
 import frc.robot.swerve.SwerveSubsystem;
-import frc.robot.Turret.DistanceCalc;
+import frc.robot.FlywheelSubsystem.DistanceCalc;
+import frc.robot.FlywheelSubsystem.LookupTable;
+import frc.robot.LockSubsystem.HeadingLock;
+import frc.robot.LockSubsystem.OutpostSetpoint;
 import frc.robot.autos.AutoPoint;
 import frc.robot.autos.AutoSegment;
 import frc.robot.autos.Points;
@@ -22,9 +25,9 @@ import frc.robot.vision.VisionSubsystem;
 import frc.robot.vision.limelight.Limelight;
 import frc.robot.vision.limelight.LimelightModel;
 import frc.robot.vision.limelight.LimelightState;
-import frc.robot.heading_lock.HeadingLockSubsystem;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import frc.robot.currentPhase.phaseTimer;
 
 public class Robot extends TimedRobot {
   // Hard-coded alliance assumption for autonomous start pose; set true for Red, false for Blue.
@@ -42,7 +45,11 @@ public class Robot extends TimedRobot {
   private final VisionSubsystem vision = new VisionSubsystem(imu, leftLimelight, rightLimelight);
   private final LocalizationSubsystem localization = new LocalizationSubsystem(imu, vision, swerve);
   private final Trailblazer trailblazer = new Trailblazer(swerve, localization);
-  private final HeadingLockSubsystem headingLock = new HeadingLockSubsystem(localization, swerve);
+  private final HeadingLock headingLock = new HeadingLock(localization, swerve);
+  private final OutpostSetpoint outpost = new OutpostSetpoint(localization, trailblazer);
+  private final DistanceCalc distanceCalc = new DistanceCalc(localization, headingLock);
+  private final LookupTable turretLookup = new LookupTable(distanceCalc);
+  private final phaseTimer phaseTimer = new phaseTimer();
   
   public Robot() {
 
@@ -65,9 +72,8 @@ public class Robot extends TimedRobot {
 
   @Override
   public void robotPeriodic() {
-    
-
-    // Field calibration features removed in simplified build
+    // Publish phase telemetry continuously; safe even if teleop hasn't started yet
+    phaseTimer.publishTelemetry();
   }
 
   @Override
@@ -83,12 +89,10 @@ public class Robot extends TimedRobot {
 
   @Override
   public void autonomousInit() {
-    // Build a minimal A->B auto using a hard-coded alliance assumption (no FMS check)
     var isRed = ASSUME_RED_ALLIANCE;
     var startPose = isRed ? Points.START_R1_AND_B1_FORWARD.redPose : Points.START_R1_AND_B1_FORWARD.bluePose;
     var endPose = new edu.wpi.first.math.geometry.Pose2d(15.0, startPose.getY(), edu.wpi.first.math.geometry.Rotation2d.kZero);
 
-    // Reset pose before starting
     localization.resetPose(startPose);
 
     var constraints = new AutoConstraintOptions();
@@ -114,6 +118,9 @@ public class Robot extends TimedRobot {
     autonomousCommand.cancel();
 
     ElasticLayoutUtil.onEnable();
+
+    // Mark the start of Teleop for phase timing
+    phaseTimer.markTeleopStart();
   }
 
   @Override
@@ -147,11 +154,11 @@ public class Robot extends TimedRobot {
                 })
             .withName("DefaultSwerveCommand"));
 
-  // Keep only a minimal binding to zero gyro
   hardware.driverController.back().onTrue(localization.getZeroCommand());
 
-  // Enable heading lock for current alliance on Y press
   hardware.driverController.y().onTrue(
       edu.wpi.first.wpilibj2.command.Commands.runOnce(headingLock::enableForAlliance));
+
+  hardware.driverController.x().onTrue(outpost.travelToOutpost());
   }
 }

@@ -1,4 +1,4 @@
-package frc.robot.heading_lock;
+package frc.robot.LockSubsystem;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -10,12 +10,13 @@ import frc.robot.util.scheduling.SubsystemPriority;
 import frc.robot.util.state_machines.StateMachine;
 
 
-public class HeadingLockSubsystem extends StateMachine<HeadingLockSubsystem.HeadingLockState> {
+public class HeadingLock extends StateMachine<HeadingLock.HeadingLockState> {
   private final LocalizationSubsystem localization;
   private final SwerveSubsystem swerve;
 
   private Pose2d redTargetPose = new Pose2d();
   private Pose2d blueTargetPose = new Pose2d();
+  private double turretOffsetDegrees = 30.0; // tell me the actual offset later dont forget ari im talking to myself
 
   public enum HeadingLockState {
     DISABLED,
@@ -23,7 +24,7 @@ public class HeadingLockSubsystem extends StateMachine<HeadingLockSubsystem.Head
     BLUE_LOCK;
   }
 
-  public HeadingLockSubsystem(LocalizationSubsystem localization, SwerveSubsystem swerve) {
+  public HeadingLock(LocalizationSubsystem localization, SwerveSubsystem swerve) {
     super(SubsystemPriority.SWERVE, HeadingLockState.DISABLED);
     this.localization = localization;
     this.swerve = swerve;
@@ -43,6 +44,10 @@ public class HeadingLockSubsystem extends StateMachine<HeadingLockSubsystem.Head
 
   public Pose2d getBlueTargetPose() {
     return blueTargetPose;
+  }
+
+  public void setTurretOffsetDegrees(double offsetDegrees) {
+    this.turretOffsetDegrees = offsetDegrees;
   }
 
   public void enableForAlliance() {
@@ -94,8 +99,8 @@ public class HeadingLockSubsystem extends StateMachine<HeadingLockSubsystem.Head
     var robotPose = localization.getPose();
     var dx = target.getX() - robotPose.getX();
     var dy = target.getY() - robotPose.getY();
-    var angleRadians = Math.atan2(dy, dx);
+    var angleRadians = Math.atan2(dy, dx); //i didnt use swerve gens bc of the offset of the turret and I didnt wanna think abt that
     var angleDegrees = Math.toDegrees(angleRadians);
-    swerve.snapsDriveRequest(angleDegrees);
+    swerve.snapsDriveRequest(angleDegrees + turretOffsetDegrees);
   }
 }
