@@ -9,11 +9,11 @@ import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.imu.ImuSubsystem;
 import frc.robot.localization.LocalizationSubsystem;
+import frc.robot.otherStuff.HeadingLock;
+import frc.robot.otherStuff.OutpostSetpoint;
 import frc.robot.swerve.SwerveSubsystem;
 import frc.robot.FlywheelSubsystem.DistanceCalc;
 import frc.robot.FlywheelSubsystem.LookupTable;
-import frc.robot.LockSubsystem.HeadingLock;
-import frc.robot.LockSubsystem.OutpostSetpoint;
 import frc.robot.autos.AutoPoint;
 import frc.robot.autos.AutoSegment;
 import frc.robot.autos.Points;
@@ -72,8 +72,6 @@ public class Robot extends TimedRobot {
 
   @Override
   public void robotPeriodic() {
-    // Publish phase telemetry continuously; safe even if teleop hasn't started yet
-    phaseTimer.publishTelemetry();
   }
 
   @Override

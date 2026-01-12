@@ -1,4 +1,4 @@
-package frc.robot.LockSubsystem;
+package frc.robot.otherStuff;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
