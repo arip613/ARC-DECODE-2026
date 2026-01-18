@@ -16,7 +16,7 @@ public class HeadingLock extends StateMachine<HeadingLock.HeadingLockState> {
 
   private Translation2d redTargetPoint = new Translation2d();
   private Translation2d blueTargetPoint = new Translation2d();
-  private double turretOffsetDegrees = 37.0; 
+  private double turretOffsetDegrees = 0; 
 
   public enum HeadingLockState {
     DISABLED,

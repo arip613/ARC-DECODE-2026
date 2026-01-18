@@ -11,18 +11,11 @@ public enum SubsystemPriority {
   SWERVE(21),
   // Localization runs before arm and shooter so that they have fresh speaker distance values
   LOCALIZATION(20),
-  AUTO_ALIGN(20),
   FMS(20),
 
   // 10-19 is for actuator subsystems
   // Intake must run before roll so that it has fresh sensor data
   DEPLOY(11),
-  INTAKE(11),
-  CLAW(10),
-  ROLL(10),
-  ELEVATOR(10),
-  ARM(10),
-  CLIMBER(10),
   LIGHTS(10),
 
   // 0-9 is for manager subsystems

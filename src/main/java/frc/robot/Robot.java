@@ -27,6 +27,8 @@ import frc.robot.vision.limelight.LimelightModel;
 import frc.robot.vision.limelight.LimelightState;
 import frc.robot.AutoMovements.FieldPoints;
 import frc.robot.currentPhase.phaseTimer;
+import frc.robot.Hardware;
+
 
 public class Robot extends TimedRobot {
   private static final boolean ASSUME_RED_ALLIANCE = false;
@@ -35,12 +37,8 @@ public class Robot extends TimedRobot {
 
   private final SwerveSubsystem swerve = new SwerveSubsystem();
   private final ImuSubsystem imu = new ImuSubsystem(swerve.drivetrainPigeon);
-  private final Limelight leftLimelight =
-    new Limelight("left", LimelightState.TAGS, LimelightModel.THREEG);
-  private final Limelight rightLimelight =
-    new Limelight("right", LimelightState.TAGS, LimelightModel.FOUR);
 
-  private final VisionSubsystem vision = new VisionSubsystem(imu, leftLimelight, rightLimelight);
+  private final VisionSubsystem vision = new VisionSubsystem(imu, hardware.leftLimelight, hardware.rightLimelight);
   private final LocalizationSubsystem localization = new LocalizationSubsystem(imu, vision, swerve);
   private final Trailblazer trailblazer = new Trailblazer(swerve, localization);
   private final HeadingLock headingLock = new HeadingLock(localization, swerve);
@@ -71,6 +69,8 @@ public class Robot extends TimedRobot {
 
   @Override
   public void robotPeriodic() {
+    // Run the command scheduler so default commands and button bindings execute
+    CommandScheduler.getInstance().run();
   }
 
   @Override

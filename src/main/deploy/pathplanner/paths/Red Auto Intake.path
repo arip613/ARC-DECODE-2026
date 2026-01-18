@@ -16,12 +16,12 @@
     },
     {
       "anchor": {
-        "x": 3.4086532738120616,
-        "y": 0.8310788690508377
+        "x": 3.9402218278615795,
+        "y": 3.9022094055013303
       },
       "prevControl": {
-        "x": -0.49999999999746203,
-        "y": 0.9811607142889325
+        "x": 0.031568554052054054,
+        "y": 4.052291250739425
       },
       "nextControl": null,
       "isLocked": false,
@@ -31,7 +31,14 @@
   "rotationTargets": [],
   "constraintZones": [],
   "pointTowardsZones": [],
-  "eventMarkers": [],
+  "eventMarkers": [
+    {
+      "name": "",
+      "waypointRelativePos": 0,
+      "endWaypointRelativePos": null,
+      "command": null
+    }
+  ],
   "globalConstraints": {
     "maxVelocity": 3.0,
     "maxAcceleration": 3.0,
@@ -42,7 +49,7 @@
   },
   "goalEndState": {
     "velocity": 0,
-    "rotation": -0.7345210342548052
+    "rotation": 46.85304063082653
   },
   "reversed": false,
   "folder": "Auto Intake Paths",

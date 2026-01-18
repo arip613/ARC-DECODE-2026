@@ -4,6 +4,8 @@ import com.ctre.phoenix6.Utils;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.networktables.DoubleArrayPublisher;
+import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -22,12 +24,20 @@ public class LocalizationSubsystem extends StateMachine<LocalizationState> {
   private final ImuSubsystem imu;
   private final VisionSubsystem vision;
   private final SwerveSubsystem swerve;
+  // NetworkTables publishers for pose telemetry
+  private final DoubleArrayPublisher botposeBluePub;
+  private final DoubleArrayPublisher robotPosePub;
 
   public LocalizationSubsystem(ImuSubsystem imu, VisionSubsystem vision, SwerveSubsystem swerve) {
     super(SubsystemPriority.LOCALIZATION, LocalizationState.DEFAULT_STATE);
     this.swerve = swerve;
     this.imu = imu;
     this.vision = vision;
+
+    // Set up NetworkTables publishers
+    var nt = NetworkTableInstance.getDefault();
+    botposeBluePub = nt.getTable("limelight").getDoubleArrayTopic("botpose_blue").publish();
+    robotPosePub = nt.getTable("Localization").getDoubleArrayTopic("robot_pose").publish();
 
     if (FeatureFlags.FIELD_CALIBRATION.getAsBoolean()) {
       SmartDashboard.putData(
@@ -63,6 +73,25 @@ public class LocalizationSubsystem extends StateMachine<LocalizationState> {
     super.robotPeriodic();
   vision.getLeftTagResult().ifPresent(this::ingestTagResult);
   vision.getRightTagResult().ifPresent(this::ingestTagResult);
+
+    // Publish the current pose to NetworkTables
+    Pose2d pose = getPose();
+    // Limelight-style botpose_blue: [X, Y, Z, Roll, Pitch, Yaw]
+    botposeBluePub.set(new double[] {
+        pose.getX(),
+        pose.getY(),
+        0.0, // Z not tracked here
+        0.0, // Roll
+        0.0, // Pitch
+        pose.getRotation().getDegrees()
+    });
+
+    // Custom pose array: [X, Y, ThetaRadians]
+    robotPosePub.set(new double[] {
+        pose.getX(),
+        pose.getY(),
+        pose.getRotation().getRadians()
+    });
 
   }
 
