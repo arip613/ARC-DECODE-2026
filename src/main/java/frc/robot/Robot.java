@@ -14,6 +14,8 @@ import frc.robot.AutoMovements.HeadingLock;
 import frc.robot.AutoMovements.OutpostSetpoint;
 import frc.robot.FlywheelSubsystem.DistanceCalc;
 import frc.robot.FlywheelSubsystem.LookupTable;
+import frc.robot.FlywheelSubsystem.Flywheel;
+import frc.robot.FlywheelSubsystem.Hood;
 import frc.robot.autos.AutoPoint;
 import frc.robot.autos.AutoSegment;
 import frc.robot.autos.Points;
@@ -22,12 +24,8 @@ import frc.robot.autos.constraints.AutoConstraintOptions;
 import frc.robot.util.ElasticLayoutUtil;
 import frc.robot.util.scheduling.LifecycleSubsystemManager;
 import frc.robot.vision.VisionSubsystem;
-import frc.robot.vision.limelight.Limelight;
-import frc.robot.vision.limelight.LimelightModel;
-import frc.robot.vision.limelight.LimelightState;
 import frc.robot.AutoMovements.FieldPoints;
 import frc.robot.currentPhase.phaseTimer;
-import frc.robot.Hardware;
 
 
 public class Robot extends TimedRobot {
@@ -44,8 +42,9 @@ public class Robot extends TimedRobot {
   private final HeadingLock headingLock = new HeadingLock(localization, swerve);
   private final OutpostSetpoint outpost = new OutpostSetpoint(localization, trailblazer);
   private final DistanceCalc distanceCalc = new DistanceCalc(localization, headingLock);
-  @SuppressWarnings("unused")
-  private final LookupTable turretLookup = new LookupTable(distanceCalc);
+  private final Flywheel flywheel = new Flywheel(hardware.flywheelA1, hardware.flywheelA2, hardware.flywheelB1, hardware.flywheelB2);
+  private final Hood hood = new Hood(hardware.hoodMotor);
+  private final LookupTable turretLookup = new LookupTable(distanceCalc, flywheel, hood);
   private final phaseTimer phaseTimer = new phaseTimer();
   
   public Robot() {
@@ -117,6 +116,9 @@ public class Robot extends TimedRobot {
     ElasticLayoutUtil.onEnable();
 
     phaseTimer.markTeleopStart();
+
+    // Enable shooter control from lookup table in teleop
+    turretLookup.enable();
   }
 
   @Override
