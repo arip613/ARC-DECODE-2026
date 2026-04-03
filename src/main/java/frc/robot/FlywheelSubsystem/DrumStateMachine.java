@@ -1,19 +1,17 @@
-
 package frc.robot.FlywheelSubsystem;
 
 import frc.robot.util.scheduling.SubsystemPriority;
 import frc.robot.util.state_machines.StateMachine;
 
-
-public class FlywheelStateMachine extends StateMachine<FlywheelStateMachine.State> {
+public class DrumStateMachine extends StateMachine<DrumStateMachine.State> {
   public enum State { OFF, SPIN_RPM }
 
-  private final Flywheel flywheel;
+  private final Drum drum;
   private double targetRpm = 0.0;
 
-  public FlywheelStateMachine(Flywheel flywheel) {
+  public DrumStateMachine(Drum drum) {
     super(SubsystemPriority.DEPLOY, State.OFF);
-    this.flywheel = flywheel;
+    this.drum = drum;
   }
 
   public void requestOff() { setStateFromRequest(State.OFF); }
@@ -27,19 +25,18 @@ public class FlywheelStateMachine extends StateMachine<FlywheelStateMachine.Stat
 
   @Override
   protected void collectInputs() {
-    // Always publish telemetry regardless of state
-    flywheel.periodicTelemetry();
+    drum.periodicTelemetry();
 
     if (getState() == State.SPIN_RPM) {
-      flywheel.spinFlywheel(targetRpm);
+      drum.spinDrum(targetRpm);
     }
   }
 
   @Override
   protected void afterTransition(State newState) {
     switch (newState) {
-      case OFF -> flywheel.stop();
-      case SPIN_RPM -> flywheel.spinFlywheel(targetRpm); // kick off immediately
+      case OFF -> drum.stop();
+      case SPIN_RPM -> drum.spinDrum(targetRpm);
     }
   }
 }

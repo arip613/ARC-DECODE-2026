@@ -11,7 +11,7 @@ import frc.robot.util.ReusableOptional;
 public class OptionalTagResult extends ReusableOptional<TagResult> {
   public OptionalTagResult() {
     // Initialize with a harmless default; will be replaced on update.
-    super(new TagResult(new Pose2d(), 0.0, null));
+    super(new TagResult(new Pose2d(), 0.0, null, 0));
   }
 
   /** Clears the value and marks as empty. */
@@ -21,8 +21,12 @@ public class OptionalTagResult extends ReusableOptional<TagResult> {
   }
 
   /** Updates the value and marks as present. */
-  public OptionalTagResult update(Pose2d pose, double timestampSeconds, Vector<N3> stdDevs) {
-    this.value = new TagResult(pose, timestampSeconds, stdDevs);
+  public OptionalTagResult update(
+      Pose2d pose,
+      double timestampSeconds,
+      Vector<N3> stdDevs,
+      int tagCount) {
+    this.value = new TagResult(pose, timestampSeconds, stdDevs, tagCount);
     this.isPresent = true;
     return this;
   }

@@ -1,8 +1,9 @@
 package frc.robot.FlywheelSubsystem;
 
 import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Transform2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import frc.robot.AutoMovements.FieldPoints;
 import frc.robot.AutoMovements.HeadingLock;
 import frc.robot.fms.FmsSubsystem;
 import frc.robot.localization.LocalizationSubsystem;
@@ -21,15 +22,21 @@ public class DistanceCalc extends LifecycleSubsystem {
   }
 
 
+  /** Returns the shooter's field-relative pose (robot pose + shooter offset). */
+  public Pose2d getShooterFieldPose() {
+    return localization.getPose().transformBy(
+        new Transform2d(FieldPoints.SHOOTER_POSE.getTranslation(), FieldPoints.SHOOTER_POSE.getRotation()));
+  }
+
   public double getDistanceToAllianceTargetMeters() {
-    Pose2d current = localization.getPose();
+    Pose2d current = getShooterFieldPose();
     Pose2d target = FmsSubsystem.isRedAlliance() ? headingLock.getRedTargetPose() : headingLock.getBlueTargetPose();
     return current.getTranslation().getDistance(target.getTranslation());
   }
 
 
   public double getRobotVelocityTowardTargetMetersPerSec() {
-    Pose2d current = localization.getPose();
+    Pose2d current = getShooterFieldPose();
     Pose2d target = FmsSubsystem.isRedAlliance() ? headingLock.getRedTargetPose() : headingLock.getBlueTargetPose();
 
     double dx = target.getX() - current.getX();
@@ -51,7 +58,7 @@ public class DistanceCalc extends LifecycleSubsystem {
 
 
   public double getRobotLateralVelocityMetersPerSec() {
-    Pose2d current = localization.getPose();
+    Pose2d current = getShooterFieldPose();
     Pose2d target = FmsSubsystem.isRedAlliance() ? headingLock.getRedTargetPose() : headingLock.getBlueTargetPose();
 
     double dx = target.getX() - current.getX();

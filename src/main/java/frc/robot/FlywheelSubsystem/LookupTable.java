@@ -1,6 +1,5 @@
 package frc.robot.FlywheelSubsystem;
 
-import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.filter.Debouncer;
 import edu.wpi.first.math.filter.LinearFilter;
 import edu.wpi.first.math.geometry.Pose2d;
@@ -46,6 +45,7 @@ public class LookupTable extends StateMachine<LookupTable.State> {
         }
     }
 
+    @SuppressWarnings("unused")
     private static class TofPoint {
         final double distance;
         final double time;
@@ -67,7 +67,7 @@ public class LookupTable extends StateMachine<LookupTable.State> {
     private static final double MIN_DISTANCE = 1.0;
     private static final double MAX_DISTANCE = 6.0;
     private static final Translation2d ROBOT_TO_LAUNCHER_TRANSLATION = new Translation2d(0.0, 0.0);
-    private static final Rotation2d ROBOT_TO_LAUNCHER_ROTATION = Rotation2d.fromDegrees(36 + 180);
+    private static final Rotation2d ROBOT_TO_LAUNCHER_ROTATION = Rotation2d.kZero;
     private static final int HOOD_FILTER_TAPS  = 20;
     private static final int DRIVE_FILTER_TAPS = 75;
     private static final double RPM_TOLERANCE      = 75.0;
@@ -88,22 +88,18 @@ public class LookupTable extends StateMachine<LookupTable.State> {
     private final Debouncer atGoalDebouncer = new Debouncer(0.2, Debouncer.DebounceType.kFalling);
 
     private final DistanceCalc distanceCalc;
-    private final Flywheel     flywheel;
+    private final Drum     drum;
     private final Hood         hood;
 
-    public LookupTable(DistanceCalc distanceCalc, Flywheel flywheel, Hood hood) {
+    public LookupTable(DistanceCalc distanceCalc, Drum drum, Hood hood) {
         super(SubsystemPriority.LOCALIZATION, State.DISABLED);
         this.distanceCalc = distanceCalc;
-        this.flywheel     = flywheel;
+        this.drum     = drum;
         this.hood         = hood;
-
-// do your job here
-        addShotPoint(new ShotPoint(2.8, 3100, 0));
-        addShotPoint(new ShotPoint(3.2, 3200, 0));
-        addShotPoint(new ShotPoint(3.6, 3390, 0));
-        addShotPoint(new ShotPoint(4, 3500, 0));
-        addShotPoint(new ShotPoint(4.9, 3900, 0));
-        addShotPoint(new ShotPoint(5.1, 4100, 0));
+// do your job he
+     addShotPoint(new ShotPoint(1.05, 1900, -5));
+     addShotPoint(new  ShotPoint(2.92936, 2300, -23));
+    
 
 
         //addTofPoint(4, 0.4);
@@ -215,20 +211,15 @@ public class LookupTable extends StateMachine<LookupTable.State> {
         ShootingParameters p = getParameters();
         if (!p.isValid()) return;
 
-        flywheel.spinFlywheel(p.flywheelRpm());
+    drum.spinDrum(p.flywheelRpm());
         hood.setAngleDegrees(Math.toDegrees(p.hoodAngleRad()));
 
         boolean inTol =
-                Math.abs(flywheel.getRpm()      - p.flywheelRpm())                  <= RPM_TOLERANCE
+        Math.abs(drum.getRpm()      - p.flywheelRpm())                  <= RPM_TOLERANCE
              && Math.abs(hood.getAngleDegrees() - Math.toDegrees(p.hoodAngleRad())) <= HOOD_TOLERANCE_DEG;
 
         atGoal = atGoalDebouncer.calculate(inTol);
         SmartDashboard.putBoolean("Shooter/AtGoal", atGoal);
-    }
-
-    private void addTofPoint(double distance, double time) {
-        tofPoints.add(new TofPoint(distance, time));
-        tofPoints.sort(Comparator.comparingDouble(p -> p.distance));
     }
 
     private double lookupTof(double distanceMeters) {
@@ -280,10 +271,7 @@ public class LookupTable extends StateMachine<LookupTable.State> {
 
     private Rotation2d getDriveAngleWithLauncherOffset(Pose2d robotPose, Translation2d target) {
         Rotation2d fieldToTargetAngle = target.minus(robotPose.getTranslation()).getAngle();
-        double dist = target.getDistance(robotPose.getTranslation());
-        double lateralOffset = ROBOT_TO_LAUNCHER_TRANSLATION.rotateBy(robotPose.getRotation()).getY();
-        Rotation2d offsetAngle = new Rotation2d(Math.asin(MathUtil.clamp(lateralOffset / dist, -1.0, 1.0)));
-        return fieldToTargetAngle.plus(offsetAngle).plus(ROBOT_TO_LAUNCHER_ROTATION);
+        return fieldToTargetAngle.plus(ROBOT_TO_LAUNCHER_ROTATION);
     }
 
     protected boolean checkBadZones(Pose2d estimatedPose) {

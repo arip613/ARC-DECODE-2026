@@ -8,16 +8,18 @@ import frc.robot.util.state_machines.StateMachine;
 public class Indexer extends StateMachine<Indexer.IndexerState> {
   public enum IndexerState { OFF, INTAKE, FEED, REVERSE }
 
-  public static final double INTAKE_POWER = 1;
-  public static final double FEED_POWER = 1;
+  public static final double INTAKE_POWER = -0.7;
+    public static final double FEED_POWER = -0.7;
   public static final double REVERSE_POWER = -0.5;
 
-  private final TalonFX Indexer;
+  private final TalonFX indexerA;
+  private final TalonFX indexerB;
   private double dutyPercent = FEED_POWER;
 
-  public Indexer(TalonFX Indexer) {
+  public Indexer(TalonFX indexerA, TalonFX indexerB) {
     super(SubsystemPriority.DEPLOY, IndexerState.OFF);
-    this.Indexer = Indexer;
+    this.indexerA = indexerA;
+    this.indexerB = indexerB;
   }
 
   public void intake() { setStateFromRequest(IndexerState.INTAKE); }
@@ -40,10 +42,15 @@ public class Indexer extends StateMachine<Indexer.IndexerState> {
   @Override
   protected void afterTransition(IndexerState newState) {
     switch (newState) {
-      case OFF -> Indexer.setControl(new DutyCycleOut(0.0));
-      case INTAKE -> Indexer.setControl(new DutyCycleOut(INTAKE_POWER));
-      case FEED -> Indexer.setControl(new DutyCycleOut(dutyPercent));
-      case REVERSE -> Indexer.setControl(new DutyCycleOut(REVERSE_POWER));
+      case OFF -> setBoth(new DutyCycleOut(0.0));
+      case INTAKE -> setBoth(new DutyCycleOut(INTAKE_POWER));
+      case FEED -> setBoth(new DutyCycleOut(dutyPercent));
+      case REVERSE -> setBoth(new DutyCycleOut(REVERSE_POWER));
     }
+  }
+
+  private void setBoth(DutyCycleOut request) {
+    indexerA.setControl(request);
+    indexerB.setControl(request);
   }
 }

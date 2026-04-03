@@ -18,4 +18,6 @@ public enum CameraHealth {
   public static CameraHealth combine(CameraHealth a, CameraHealth b, CameraHealth c) {
     return combine(combine(a, b), c);
   }
+
+  
 }

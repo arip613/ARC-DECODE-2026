@@ -40,6 +40,7 @@ public class SwerveSubsystem extends StateMachine<SwerveState> {
 
   private static final PhoenixPIDController ORIGINAL_HEADING_PID =
       RobotConfig.get().swerve().snapController();
+  private static final double HEADING_MIN_COMMAND = 0.05;
 
   private static final InterpolatingDoubleTreeMap ELEVATOR_HEIGHT_TO_SLOW_MODE =
       InterpolatingDoubleTreeMap.ofEntries(Map.entry(0.0, 1.0));
@@ -62,11 +63,8 @@ public class SwerveSubsystem extends StateMachine<SwerveState> {
 
   private final SwerveRequest.FieldCentricFacingAngle driveToAngle =
       new SwerveRequest.FieldCentricFacingAngle()
-          .withDriveRequestType(DriveRequestType.OpenLoopVoltage)
+          .withDriveRequestType(DriveRequestType.Velocity)
           .withDeadband(MaxSpeed * 0.01)
-          .withRotationalDeadband(maxAngularRate * 0.005)
-          .withHeadingPID(
-              ORIGINAL_HEADING_PID.getP(), ORIGINAL_HEADING_PID.getI(), ORIGINAL_HEADING_PID.getD())
           .withMaxAbsRotationalRate(maxAngularRate);
 
   private double lastSimTime;
@@ -118,6 +116,19 @@ public class SwerveSubsystem extends StateMachine<SwerveState> {
       startSimThread();
     }
 
+    driveToAngle.HeadingController = new PhoenixPIDController(
+        ORIGINAL_HEADING_PID.getP(), ORIGINAL_HEADING_PID.getI(), ORIGINAL_HEADING_PID.getD()) {
+      @Override
+      public double calculate(double measurement, double setpoint, double currentTimestamp) {
+        double output = super.calculate(measurement, setpoint, currentTimestamp);
+        if (!atSetpoint() && Math.abs(output) < HEADING_MIN_COMMAND) {
+          output = Math.copySign(HEADING_MIN_COMMAND, output);
+        }
+        return output;
+      }
+    };
+    driveToAngle.HeadingController.setIZone(ORIGINAL_HEADING_PID.getIZone());
+    driveToAngle.HeadingController.enableContinuousInput(-Math.PI, Math.PI);
     driveToAngle.HeadingController.setTolerance(0.01);
 
     drivetrain.setStateStdDevs(new Matrix<>(VecBuilder.fill(0.003, 0.003, 0.002)));

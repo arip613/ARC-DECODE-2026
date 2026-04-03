@@ -5,6 +5,7 @@ import com.ctre.phoenix6.configs.MotionMagicConfigs;
 import com.ctre.phoenix6.configs.Slot0Configs;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.DutyCycleOut;
+import com.ctre.phoenix6.controls.MotionMagicTorqueCurrentFOC;
 import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.hardware.TalonFX;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -17,27 +18,26 @@ public class Hood {
 	private static final double AT_GOAL_TOL_DEG = 0.1;
 
 	private final TalonFX motor;
-	private final MotionMagicVoltage mmRequest = new MotionMagicVoltage(0).withSlot(0);
+	private final MotionMagicTorqueCurrentFOC mmRequest = new MotionMagicTorqueCurrentFOC(0).withSlot(0);
 	private double lastTargetDeg = 0.0;
 
 	public Hood(TalonFX motor) {
 		this.motor = motor;
 
 		var cfg = new TalonFXConfiguration();
-		cfg.Slot0 = new Slot0Configs().withKP(80).withKI(0).withKD(0);
+		cfg.Slot0 = new Slot0Configs().withKP(50).withKI(0).withKD(0);
 		cfg.MotionMagic =
 				new MotionMagicConfigs()
-						.withMotionMagicCruiseVelocity(80.0)
-						.withMotionMagicAcceleration(100.0);
+						.withMotionMagicCruiseVelocity(100.0)
+						.withMotionMagicAcceleration(120);
 		cfg.CurrentLimits = new CurrentLimitsConfigs()
-				.withSupplyCurrentLimit(20.0)
+				.withSupplyCurrentLimit(40.0)
 				.withSupplyCurrentLimitEnable(true)
-				.withStatorCurrentLimit(40.0)
+				.withStatorCurrentLimit(60.0)
 				.withStatorCurrentLimitEnable(true);
 
 		motor.getConfigurator().apply(cfg);
 
-		// Zero the encoder so current position = 0 degrees
 		motor.setPosition(0.0);
 	}
 
@@ -47,6 +47,11 @@ public class Hood {
 		double rotations = (clamped / 360.0) * GEAR_RATIO;
 		motor.setControl(mmRequest.withPosition(rotations));
 	}
+
+	public void dutyCycle(double perce) {
+		motor.setControl(new DutyCycleOut(perce));
+	}
+
 
 	public void hold() {
 		double currentRot = motor.getPosition().getValueAsDouble();
@@ -75,6 +80,7 @@ public class Hood {
 		SmartDashboard.putNumber("Hood/AngleDeg", getAngleDegrees());
 		SmartDashboard.putNumber("Hood/TargetDeg", lastTargetDeg);
 		SmartDashboard.putBoolean("Hood/AtGoal", isAtGoal());
+
 	}
 
 	public double getAngleRadians() {

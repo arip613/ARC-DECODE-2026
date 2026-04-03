@@ -21,9 +21,9 @@ public class Hopper extends StateMachine<Hopper.HopperState> {
   public static final double PULSE_ON_TIME = 0.01;   
   public static final double PULSE_OFF_TIME = 0.005;  
   private final TalonFX Hopper;
-  private double dutyPercent = FEED_POWER;
   private final Timer pulseTimer = new Timer();
   private boolean pulseOn = true;
+  private double dutyPercent = FEED_POWER;
 
   public Hopper(TalonFX Hopper) {
     super(SubsystemPriority.DEPLOY, HopperState.OFF);
@@ -62,7 +62,7 @@ public class Hopper extends StateMachine<Hopper.HopperState> {
     switch (newState) {
       case OFF -> Hopper.setControl(new DutyCycleOut(0.0));
       case INTAKE -> Hopper.setControl(new DutyCycleOut(INTAKE_POWER));
-      case FEED -> Hopper.setControl(new DutyCycleOut(FEED_POWER));
+  case FEED -> Hopper.setControl(new DutyCycleOut(dutyPercent));
       case REVERSE -> Hopper.setControl(new DutyCycleOut(REVERSE_POWER));
       case PULSE -> {
         pulseTimer.restart();

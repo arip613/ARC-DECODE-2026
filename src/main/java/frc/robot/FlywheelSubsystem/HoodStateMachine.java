@@ -19,6 +19,10 @@ public class HoodStateMachine extends StateMachine<HoodStateMachine.State> {
   public void requestOff() { setStateFromRequest(State.OFF); }
   public void requestDegrees(double degrees) {
     this.targetDegrees = degrees;
+    if (getState() == State.DEGREE_TARGET) {
+      hood.setAngleDegrees(targetDegrees);
+      return;
+    }
     setStateFromRequest(State.DEGREE_TARGET);
   }
 

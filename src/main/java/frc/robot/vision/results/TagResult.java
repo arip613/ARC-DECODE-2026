@@ -11,11 +11,13 @@ public class TagResult {
   private final Pose2d pose;
   private final double timestampSeconds;
   private final Vector<N3> standardDevs;
+  private final int tagCount;
 
-  public TagResult(Pose2d pose, double timestampSeconds, Vector<N3> standardDevs) {
+  public TagResult(Pose2d pose, double timestampSeconds, Vector<N3> standardDevs, int tagCount) {
     this.pose = pose;
     this.timestampSeconds = timestampSeconds;
     this.standardDevs = standardDevs;
+    this.tagCount = tagCount;
   }
 
   public Pose2d pose() {
@@ -28,5 +30,9 @@ public class TagResult {
 
   public Vector<N3> standardDevs() {
     return standardDevs;
+  }
+
+  public int tagCount() {
+    return tagCount;
   }
 }

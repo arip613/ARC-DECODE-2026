@@ -36,10 +36,7 @@ public class LeaveNeutralZone {
 	public void setRA2(Pose2d pose) { FieldPoints.setRA2(pose); }
 	public void setRB2(Pose2d pose) { FieldPoints.setRB2(pose); }
 
-	public void setBA1(Pose2d pose) { FieldPoints.setBA1(pose); }
-	public void setBB1(Pose2d pose) { FieldPoints.setBB1(pose); }
-	public void setBA2(Pose2d pose) { FieldPoints.setBA2(pose); }
-	public void setBB2(Pose2d pose) { FieldPoints.setBB2(pose); }
+	// Blue neutral zone poses are auto-mirrored from red — set red to change blue
 
 
 	public Command omwtoLeaveNeutralZone_red() {

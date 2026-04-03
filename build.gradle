@@ -105,3 +105,17 @@ wpi.java.configureTestTasks(test)
 tasks.withType(JavaCompile) {
     options.compilerArgs.add '-XDstringConcat=inline'
 }
+
+// Strip UTF-8 BOM from all Java source files before compiling
+tasks.register('stripBom') {
+    doLast {
+        fileTree('src/main/java').matching { include '**/*.java' }.each { File f ->
+            byte[] bytes = f.bytes
+            if (bytes.length >= 3 && bytes[0] == (byte)0xEF && bytes[1] == (byte)0xBB && bytes[2] == (byte)0xBF) {
+                logger.warn("Stripping BOM from: ${f.name}")
+                f.bytes = Arrays.copyOfRange(bytes, 3, bytes.length)
+            }
+        }
+    }
+}
+tasks.named('compileJava') { dependsOn 'stripBom' }

@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(./gradlew compileJava:*)"
+      "Bash(./gradlew compileJava:*)",
+      "Bash(curl:*)",
+      "WebFetch(domain:edanliahovetsky.github.io)",
+      "Bash(jar tf:*)",
+      "Bash(cd:*)",
+      "Bash(javap:*)",
+      "Bash(./gradlew build:*)"
     ]
   }
 }

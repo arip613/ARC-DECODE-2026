@@ -5,10 +5,9 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.AutoMovements.HeadingLock;
-import frc.robot.FlywheelSubsystem.Flywheel;
-import frc.robot.FlywheelSubsystem.Hood;
+import frc.robot.FlywheelSubsystem.Drum;
 import frc.robot.FlywheelSubsystem.LookupTable;
-import frc.robot.FlywheelSubsystem.FlywheelStateMachine;
+import frc.robot.FlywheelSubsystem.DrumStateMachine;
 import frc.robot.FlywheelSubsystem.HoodStateMachine;
 import frc.robot.IndexerSubsystem.Indexer;
 import frc.robot.IndexerSubsystem.Hopper;
@@ -16,13 +15,14 @@ import frc.robot.Intake.IntakePosition;
 import frc.robot.Intake.intaker;
 import frc.robot.localization.LocalizationSubsystem;
 import frc.robot.swerve.SwerveSubsystem;
+import frc.robot.lib.BLine.FollowPath;
 
 /**
  * All point-to-point autonomous routines live here.
  *
  * ===== HOW TO ADD A NEW AUTO =====
  * 1. Add a new method below (copy an existing one as a template)
- * 2. Use AutoRoutine.create(swerve, localization) to start building
+ * 2. Use AutoRoutine.create(swerve, localization, pathBuilder) to start building
  * 3. Chain steps:
  *      .startAt(x, y, deg)            - set starting pose
  *      .driveTo(x, y, deg)            - drive to a field pose
@@ -37,13 +37,17 @@ import frc.robot.swerve.SwerveSubsystem;
  * ===== HOW TO ADD A POINT TO AN EXISTING AUTO =====
  * Just insert .driveTo(x, y, heading) wherever you want in the chain.
  * Add .runOnce() / .doWhileDriving() around it for actions.
+ *
+ * ===== BLUE AUTOS =====
+ * Blue autos are mirrored from red using AutoRoutine.createMirrored().
+ * Only define red poses — blue is automatic.
  */
 public class PointToPointAutos {
   private final SwerveSubsystem swerve;
   private final LocalizationSubsystem localization;
-  private final Flywheel flywheel;
-  private final Hood hood;
-  private final FlywheelStateMachine flywheelSM;
+  private final FollowPath.Builder pathBuilder;
+  private final Drum drum;
+  private final DrumStateMachine drumSM;
   private final HoodStateMachine hoodSM;
   private final HeadingLock headingLock;
   private final LookupTable turretLookup;
@@ -57,9 +61,9 @@ public class PointToPointAutos {
   public PointToPointAutos(
       SwerveSubsystem swerve,
       LocalizationSubsystem localization,
-      Flywheel flywheel,
-      Hood hood,
-      FlywheelStateMachine flywheelSM,
+      FollowPath.Builder pathBuilder,
+      Drum drum,
+      DrumStateMachine drumSM,
       HoodStateMachine hoodSM,
       HeadingLock headingLock,
       LookupTable turretLookup,
@@ -69,9 +73,9 @@ public class PointToPointAutos {
       IntakePosition intakePosition) {
     this.swerve = swerve;
     this.localization = localization;
-    this.flywheel = flywheel;
-    this.hood = hood;
-    this.flywheelSM = flywheelSM;
+    this.pathBuilder = pathBuilder;
+    this.drum = drum;
+    this.drumSM = drumSM;
     this.hoodSM = hoodSM;
     this.headingLock = headingLock;
     this.turretLookup = turretLookup;
@@ -84,6 +88,10 @@ public class PointToPointAutos {
     chooser.setDefaultOption("Do Nothing", Commands.none());
     chooser.addOption("Red Right", RedRight());
     chooser.addOption("Red Left", RedLeft());
+    chooser.addOption("Blue Right", BlueRight());
+    chooser.addOption("Blue Left", BlueLeft());
+    chooser.addOption("OutPostRed", OutPostRed());
+    chooser.addOption("Red Left One Swipe", RedLeftOneSwipe());
 
     SmartDashboard.putData("Auto Chooser", chooser);
   }
@@ -92,6 +100,12 @@ public class PointToPointAutos {
   public Command getSelected() {
     return chooser.getSelected();
   }
+
+  // =====================================================================
+  //  MIRROR HELPERS — shorthand for FieldPoints mirror utilities
+  // =====================================================================
+
+  // Mirror helpers now handled by AutoRoutine.createMirrored
 
   // =====================================================================
   //  HELPER COMMANDS - reusable building blocks for any auto
@@ -108,13 +122,13 @@ public class PointToPointAutos {
     return Commands.runOnce(() -> {
       headingLock.disableLock();
       turretLookup.disable();
-      flywheelSM.requestOff();
+      drumSM.requestOff();
       hoodSM.requestOff();
     });
   }
 
   private Command startFeeding() {
-    return Commands.waitUntil(() -> flywheel.isAtGoal() && headingLock.isSettled())
+    return Commands.waitUntil(() -> drum.isAtGoal() && headingLock.isSettled())
         .andThen(Commands.runOnce(() -> {
           indexer.feed();
           hopper.feed();
@@ -131,8 +145,8 @@ public class PointToPointAutos {
 
   private Command startIntaking() {
     return Commands.runOnce(() -> {
-      intakePosition.deploy();
-      intakeRoller.intake();
+      intakePosition.pulse();
+      intakeRoller.auto();
       hopper.feed();
     });
   }
@@ -149,7 +163,7 @@ public class PointToPointAutos {
     return Commands.runOnce(() -> {
       headingLock.disableLock();
       turretLookup.disable();
-      flywheelSM.requestOff();
+  drumSM.requestOff();
       hoodSM.requestOff();
       indexer.stop();
       hopper.stop();
@@ -158,65 +172,126 @@ public class PointToPointAutos {
     });
   }
 
+  // =====================================================================
+  //  RED AUTOS (source of truth)
+  // =====================================================================
 
-  private Command RedLeft() {
-    return AutoRoutine.create(swerve, localization)
-        .startAt(12.84, 0.7, 180.0)
-        .driveToAll(8.8, 0.7, 270)
-        .run(startIntaking())
-        .driveToAll(8.8, 3.6, 270)
-        .driveToAll(8.8, 0.7, 51.56)
-        .run(stopIntaking())
-        .driveToAll(15.3, 0.8, 180)
-        .run(startAiming())
-        .run(startFeeding())
-        .waitSeconds(3)
-        .run(stopAiming())
-        .run(stopFeeding())
-        .driveToAll(8.8, 0.7, 270)
-        .run(startIntaking())
-        .driveToAll(8.8, 3.6, 270)
-        .driveToAll(8.8, 0.7, 180)
-        .run(stopIntaking())
-        .driveToAll(15.3, 0.7, 51.56)
-        .run(startAiming())
-        .run(startFeeding())
-        .waitSeconds(3)
-        .run(stopAll())
-        .build()
-        .withName("Red Left");
+
+
+  private Command RedLeftOneSwipe() {
+    return AutoRoutine.create(swerve, localization, pathBuilder)
+    .startAt(12.11, 0.58, 180.0)
+      .driveToAll(8.8, 0.58, 270)
+      .run(startIntaking())
+      .driveToAll(8.8, 3.413, 270, 1.3)
+      .driveToAll(10.62, 0.58, 0)
+      .run(stopIntaking())
+      .driveToAll(14.8, 0.68, 180)
+      .run(startAiming())
+      .run(startFeeding())
+      .waitSeconds(20)
+      .run(stopAiming())
+      .run(stopFeeding())
+      .run(stopAll())
+      .build()
+      .withName("Red Left One Swipe");
+
   }
 
-  private Command RedRight() {
-    return AutoRoutine.create(swerve, localization)
-        .startAt(13.0, 7.5, 180.0)
-        .driveToAll(9, 7.5, 90)
-        .run(startIntaking())
-        .driveToAll(9, 4.6, 90)
-        .driveToAll(9,7.45, 180)
-        .run(stopIntaking())
-        .driveToAll(13.2, 7.5, 180)
-        .driveToAll(15, 6.7,180)
-        .run(startAiming())
-        .run(startFeeding())
-        .waitSeconds(3)
-        .driveToAll(13, 7.5, 180)
-        .driveToAll(9, 7.5, 90)
-        .run(startIntaking())
-        .driveToAll(9, 4.6, 90)
-        .driveToAll(9,7.45, 180)
-        .run(stopIntaking())
-        .driveToAll(13.2, 7.5, 180)
-        .driveToAll(16.25, 7.291,180)
-        .run(startAiming())
-        .run(startFeeding())
-        .waitSeconds(5)
-        .run(stopAll())
-        .build()
-        .withName("Red Right");
+private Command LeftAuto(boolean mirror) {
+  var routine = mirror
+      ? AutoRoutine.createMirrored(swerve, localization, pathBuilder)
+      : AutoRoutine.create(swerve, localization, pathBuilder);
+  return routine
+      .startAt(12.11, 0.58, 180.0)
+      .driveToAll(8.8, 0.58, 270)
+      .run(startIntaking())
+      .driveToAll(8.8, 3.413, 270, 2)
+      .driveToAll(10.62, 0.68, 0)
+      .run(stopIntaking())
+      .driveToAll(14.8, 0.68, 180)
+      .run(startAiming())
+      .run(startFeeding())
+      .waitSeconds(4)
+      .run(stopAiming())
+      .run(stopFeeding())
+      .driveToAll(8.81, 0.68, 180)
+      .run(startIntaking())
+      .driveToAll(10, 3.413, 270,2)
+      .driveToAll(10, 0.58, 0)
+      .run(stopIntaking())
+      .driveToAll(14.8, 0.68, 180)
+      .run(startAiming())
+      .run(startFeeding())
+      .waitSeconds(4)
+      .run(stopAll())
+      .build()
+      .withName(mirror ? "Blue Left" : "Red Left");
 }
 
+  private Command RightAuto(boolean mirror) {
+    var routine = mirror
+        ? AutoRoutine.createMirrored(swerve, localization, pathBuilder)
+        : AutoRoutine.create(swerve, localization, pathBuilder);
+    return routine
+        .startAt(12.11, 7.42, 180.0)
+        .driveToAll(8.8, 7.42, 90)
+        .run(startIntaking())
+        .driveToAll(8.8, 4.587, 90,1.4)
+        .driveToAll(10.62, 7.42, 0)
+        .run(stopIntaking())
+        .driveToAll(14.8, 7.42, 180)
+        .run(startAiming())
+        .run(startFeeding())
+        .waitSeconds(4)
+        .run(stopAiming())
+        .run(stopFeeding())
+        .driveToAll(8.81, 7.42, 180)
+        .run(startIntaking())
+        .driveToAll(10, 4.587, 90,2)
+        .driveToAll(10, 7.42, 0)
+        .run(stopIntaking())
+        .driveToAll(14.8, 7.42, 180)
+        .run(startAiming())
+        .run(startFeeding())
+        .waitSeconds(4)
+        .run(stopAll())
+        .build()
+    .withName(mirror ? "Blue Right" : "Red Right");
+  }
 
 
- 
+
+  private Command OutPostRed() {
+    return AutoRoutine.create(swerve, localization, pathBuilder)
+        .startAt(12.11, 7.42, 180.0)
+        .driveToAll(8.8, 7.42, 90)
+        .run(startIntaking())
+        .driveToAll(8.8, 4.587, 90, 1.4)
+        .driveToAll(10.62, 7.42, 0)
+        .run(stopIntaking())
+        .driveToAll(16.275 + 0.254 + 0.102, 7.314, 180, 2.7).withTimeout(6)
+        .run(startAiming())
+        .run(startFeeding())
+        .waitSeconds(20)
+        .run(stopAiming())
+        .run(stopFeeding())
+        .run(stopAll())
+        .build()
+        .withName("OutPostRed");
+  }
+
+
+
+
+
+
+  private Command RedRight() { return RightAuto(false); }
+  private Command BlueRight() { return RightAuto(true); }
+
+
+  private Command RedLeft() { return LeftAuto(false); }
+  private Command BlueLeft() { return LeftAuto(true); }
+
+
 }

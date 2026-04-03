@@ -38,7 +38,7 @@ public class OutpostSetpoint {
 	}
 
 	public void setRedSetpoint(Pose2d pose) { FieldPoints.setOutpostRed(pose); }
-	public void setBlueSetpoint(Pose2d pose) { FieldPoints.setOutpostBlue(pose); }
+	// Blue outpost is auto-mirrored from red — set red to change blue
 
 	public State getState() {
 		return state;

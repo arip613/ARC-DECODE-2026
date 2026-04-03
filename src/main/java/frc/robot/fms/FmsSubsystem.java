@@ -12,6 +12,8 @@ public class FmsSubsystem extends LifecycleSubsystem {
   }
 
   public static boolean isRedAlliance() {
+    // When not connected to FMS (off-field) DriverStation may return empty.
+    // Default to Alliance.Red when FMS is unavailable.
     Alliance alliance = DriverStation.getAlliance().orElse(Alliance.Red);
 
     return alliance == Alliance.Red;

@@ -6,11 +6,16 @@ import frc.robot.config.RobotConfig.SwerveConfig;
 import frc.robot.config.RobotConfig.VisionConfig;
 
 class CompConfig {
+  private static PhoenixPIDController createSnapController() {
+    var controller = new PhoenixPIDController(4.5,0.00, 0.0);
+    controller.setIZone(8.0);
+    return controller;
+  }
 
   public static final RobotConfig competitionBot =
                   new RobotConfig(
                       "comp",
-                      new SwerveConfig(new PhoenixPIDController(3.7, 0, 0.0), true, true, true),
+                      new SwerveConfig(createSnapController(), true, true, true),
                       new VisionConfig(
                           0.005,
                           0.8,

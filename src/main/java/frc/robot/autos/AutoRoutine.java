@@ -2,181 +2,265 @@ package frc.robot.autos;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
-import frc.robot.AutoMovements.DriveToPose;
+import frc.robot.AutoMovements.FieldPoints;
 import frc.robot.localization.LocalizationSubsystem;
 import frc.robot.swerve.SwerveSubsystem;
+import frc.robot.lib.BLine.FollowPath;
+import frc.robot.lib.BLine.Path;
+import frc.robot.lib.BLine.Path.Waypoint;
+import frc.robot.lib.BLine.Path.PathConstraints;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
- * A fluent builder for creating autonomous routines using DriveToPose point-to-point driving.
+ * A fluent builder for creating autonomous routines using BLine path following.
+ *
+ * Consecutive driveTo/driveToAll calls are batched into a single BLine Path
+ * for smooth multi-waypoint following. Actions (run, waitSeconds, etc.) flush
+ * the accumulated waypoints into a path command before adding the action.
  *
  * Usage example:
  * <pre>
- *   Command auto = AutoRoutine.create(swerve, localization)
- *       .startAt(14.0, 7.0, 180.0)               // reset pose to starting position
- *       .driveTo(12.0, 7.0, 180.0)                // drive to first point
- *       .doWhileDriving(spinUpFlywheel())          // run a command in parallel with next drive
- *       .driveTo(11.0, 6.0, 200.0)                // drive while spinning up
- *       .run(shootCommand())                       // run a command (waits for it to finish)
- *       .driveTo(10.0, 5.0, 180.0)                // drive to next point
- *       .runFor(0.5, feedCommand())                // run a command for 0.5 seconds
- *       .waitSeconds(0.3)                          // pause
+ *   Command auto = AutoRoutine.create(swerve, localization, pathBuilder)
+ *       .startAt(14.0, 7.0, 180.0)
+ *       .driveToAll(12.0, 7.0, 180.0)
+ *       .driveToAll(11.0, 6.0, 200.0)    // batched into one smooth path
+ *       .run(shootCommand())              // flushes path, then runs action
+ *       .driveToAll(10.0, 5.0, 180.0)
  *       .build();
  * </pre>
  */
 public class AutoRoutine {
   private final SwerveSubsystem swerve;
   private final LocalizationSubsystem localization;
+  private final FollowPath.Builder pathBuilder;
+  private final boolean mirror;
   private final List<Command> steps = new ArrayList<>();
   private Pose2d startPose = null;
 
-  // Queued parallel commands to run alongside the NEXT driveTo
-  private final List<Command> pendingParallel = new ArrayList<>();
+  // Accumulated waypoints for the current BLine path segment
+  private final List<Waypoint> pendingWaypoints = new ArrayList<>();
+  // Per-waypoint max speed constraints (null = use default)
+  private final List<Double> pendingMaxSpeeds = new ArrayList<>();
 
-  private AutoRoutine(SwerveSubsystem swerve, LocalizationSubsystem localization) {
+  // Queued parallel commands to run alongside the NEXT drive path
+  private final List<Command> pendingParallel = new ArrayList<>();
+  private Double pendingTimeoutSeconds = null;
+
+
+  private AutoRoutine(SwerveSubsystem swerve, LocalizationSubsystem localization,
+                      FollowPath.Builder pathBuilder, boolean mirror) {
     this.swerve = swerve;
     this.localization = localization;
+    this.pathBuilder = pathBuilder;
+    this.mirror = mirror;
   }
 
-  /** Create a new auto routine builder. */
-  public static AutoRoutine create(SwerveSubsystem swerve, LocalizationSubsystem localization) {
-    return new AutoRoutine(swerve, localization);
+  /** Create a new auto routine builder using BLine path following. */
+  public static AutoRoutine create(SwerveSubsystem swerve, LocalizationSubsystem localization,
+                                   FollowPath.Builder pathBuilder) {
+    return new AutoRoutine(swerve, localization, pathBuilder, false);
+  }
+
+  /** Create a new auto routine builder that mirrors all poses (red → blue). */
+  public static AutoRoutine createMirrored(SwerveSubsystem swerve, LocalizationSubsystem localization,
+                                           FollowPath.Builder pathBuilder) {
+    return new AutoRoutine(swerve, localization, pathBuilder, true);
   }
 
   // ---- Starting pose ----
 
-  /** Set the starting pose. The robot's localization will be reset to this pose at auto start. */
   public AutoRoutine startAt(Pose2d pose) {
-    this.startPose = pose;
+    this.startPose = maybeMirror(pose);
     return this;
   }
 
-  /** Set the starting pose from X, Y (meters) and heading (degrees). */
   public AutoRoutine startAt(double x, double y, double headingDeg) {
     return startAt(new Pose2d(x, y, Rotation2d.fromDegrees(headingDeg)));
   }
 
-  // ---- Drive steps ----
+  // ---- Drive steps (accumulated into BLine paths) ----
 
-  /** Drive to a pose. Any pending parallel commands (from doWhileDriving) run alongside this. */
   public AutoRoutine driveTo(Pose2d target) {
-    return driveTo(() -> target);
+    addWaypoint(maybeMirror(target), null);
+    return this;
   }
 
-  /** Drive to a pose from X, Y (meters) and heading (degrees). */
   public AutoRoutine driveTo(double x, double y, double headingDeg) {
     return driveTo(new Pose2d(x, y, Rotation2d.fromDegrees(headingDeg)));
   }
 
-  /** Drive to a dynamically supplied pose (evaluated at command start). */
-  public AutoRoutine driveTo(Supplier<Pose2d> target) {
-    return addDriveStep(target, false);
-  }
-
-  // ---- Simultaneous drive (X + Y + rotation all at once) ----
-
-  /** Drive to a pose with X, Y, and rotation all moving simultaneously. */
   public AutoRoutine driveToAll(Pose2d target) {
-    return driveToAll(() -> target);
+    addWaypoint(maybeMirror(target), null);
+    return this;
   }
 
-  /** Drive to a pose from X, Y (meters) and heading (degrees) with all axes simultaneously. */
   public AutoRoutine driveToAll(double x, double y, double headingDeg) {
     return driveToAll(new Pose2d(x, y, Rotation2d.fromDegrees(headingDeg)));
   }
 
-  /** Drive to a dynamically supplied pose with all axes simultaneously. */
-  public AutoRoutine driveToAll(Supplier<Pose2d> target) {
-    return addDriveStep(target, true);
-  }
-
-  /** Internal helper to add a drive step with or without simultaneous mode. */
-  private AutoRoutine addDriveStep(Supplier<Pose2d> target, boolean simultaneous) {
-    Command drive = new DriveToPose(swerve, localization, target, simultaneous);
-
-    if (!pendingParallel.isEmpty()) {
-      // Run all pending parallel commands alongside this drive
-      List<Command> parallel = new ArrayList<>(pendingParallel);
-      pendingParallel.clear();
-      // The drive is the "main" command; parallels run alongside it
-      Command combined = drive;
-      for (Command cmd : parallel) {
-        combined = combined.alongWith(cmd);
-      }
-      steps.add(combined.withName("DriveWithParallel"));
-    } else {
-      steps.add(drive);
-    }
+  public AutoRoutine driveToAll(double x, double y, double headingDeg, double maxSpeed) {
+    addWaypoint(maybeMirror(new Pose2d(x, y, Rotation2d.fromDegrees(headingDeg))), maxSpeed);
     return this;
   }
 
-  // ---- Parallel commands (run alongside the NEXT driveTo) ----
+  public AutoRoutine driveToAll(Pose2d target, double maxSpeed) {
+    addWaypoint(maybeMirror(target), maxSpeed);
+    return this;
+  }
 
-  /** Queue a command to run in parallel with the NEXT driveTo call. Can be called multiple times. */
+  private void addWaypoint(Pose2d pose, Double maxSpeed) {
+    pendingWaypoints.add(new Waypoint(pose));
+    pendingMaxSpeeds.add(maxSpeed);
+  }
+
+  // ---- Parallel commands ----
+
   public AutoRoutine doWhileDriving(Command cmd) {
     pendingParallel.add(cmd);
     return this;
   }
 
-  // ---- Sequential action steps (run between drives) ----
+  public AutoRoutine withTimeout(double seconds) {
+    if (seconds <= 0) return this;
+    if (!steps.isEmpty() && pendingWaypoints.isEmpty()) {
+      int lastIndex = steps.size() - 1;
+      Command last = steps.remove(lastIndex);
+      steps.add(last.withTimeout(seconds));
+    } else {
+      pendingTimeoutSeconds = seconds;
+    }
+    return this;
+  }
 
-  /** Run a command and wait for it to finish before continuing. */
+  // ---- Sequential action steps ----
+
   public AutoRoutine run(Command cmd) {
+    flushPendingPath();
     steps.add(cmd);
     return this;
   }
 
-  /** Run a command that fires instantly (runOnce). */
   public AutoRoutine runOnce(Runnable action) {
+    flushPendingPath();
     steps.add(Commands.runOnce(action));
     return this;
   }
 
-  /** Run a command for a fixed duration, then move on. */
   public AutoRoutine runFor(double seconds, Command cmd) {
+    flushPendingPath();
     steps.add(cmd.withTimeout(seconds));
     return this;
   }
 
-  /** Wait for a duration before continuing. */
   public AutoRoutine waitSeconds(double seconds) {
+    flushPendingPath();
     steps.add(Commands.waitSeconds(seconds));
     return this;
   }
 
-  /** Run a command until a condition is true. */
   public AutoRoutine runUntil(java.util.function.BooleanSupplier condition, Command cmd) {
+    flushPendingPath();
     steps.add(cmd.until(condition));
     return this;
   }
 
   // ---- Build ----
 
-  /** Build the auto routine into a single Command. */
   public Command build() {
+    flushPendingPath();
+
     List<Command> allSteps = new ArrayList<>();
 
-    // First step: reset pose if startAt was called
     if (startPose != null) {
       final Pose2d pose = startPose;
       allSteps.add(Commands.runOnce(() -> {
         localization.resetPose(pose);
-        localization.resetGyro(pose.getRotation());
       }).withName("ResetPose"));
     }
 
     allSteps.addAll(steps);
 
-    // Stop the robot at the end
     allSteps.add(Commands.runOnce(() -> {
-      swerve.setFieldRelativeAutoSpeeds(new edu.wpi.first.math.kinematics.ChassisSpeeds());
+      swerve.setFieldRelativeAutoSpeeds(new ChassisSpeeds());
     }).withName("StopDrive"));
 
     return Commands.sequence(allSteps.toArray(new Command[0])).withName("AutoRoutine");
+  }
+
+  // ---- Internal helpers ----
+
+  private Pose2d maybeMirror(Pose2d pose) {
+    if (!mirror) {
+      return pose;
+    }
+    Pose2d mirrored = FieldPoints.mirrorPose(pose);
+    return new Pose2d(
+        mirrored.getTranslation(),
+        mirrored.getRotation().plus(Rotation2d.fromDegrees(180.0)));
+  }
+
+  /**
+   * Flush accumulated waypoints into a single BLine FollowPath command.
+   * If there are pending parallel commands, they run alongside the path.
+   */
+  private void flushPendingPath() {
+    if (pendingWaypoints.isEmpty()) {
+      return;
+    }
+
+    // Build the BLine Path from accumulated waypoints
+    // If we have a lastPose from a previous segment and this is a new segment,
+    // the first waypoint IS the start of this path
+    List<Path.PathElement> elements = new ArrayList<>(pendingWaypoints);
+    Path path;
+
+    // Check if any waypoint has a speed constraint — use the minimum as the path constraint
+    Double minMaxSpeed = null;
+    for (Double speed : pendingMaxSpeeds) {
+      if (speed != null) {
+        if (minMaxSpeed == null || speed < minMaxSpeed) {
+          minMaxSpeed = speed;
+        }
+      }
+    }
+
+    if (minMaxSpeed != null) {
+      PathConstraints constraints = new PathConstraints()
+          .setMaxVelocityMetersPerSec(minMaxSpeed);
+      path = new Path(elements, constraints);
+    } else {
+      path = new Path(elements);
+    }
+
+    Command drive = pathBuilder.build(path);
+
+    // Attach parallel commands if any
+    if (!pendingParallel.isEmpty()) {
+      List<Command> parallel = new ArrayList<>(pendingParallel);
+      pendingParallel.clear();
+      Command combined = drive;
+      for (Command cmd : parallel) {
+        combined = combined.alongWith(cmd);
+      }
+      if (pendingTimeoutSeconds != null) {
+        combined = combined.withTimeout(pendingTimeoutSeconds);
+        pendingTimeoutSeconds = null;
+      }
+      steps.add(combined.withName("BLineDriveWithParallel"));
+    } else {
+      if (pendingTimeoutSeconds != null) {
+        drive = drive.withTimeout(pendingTimeoutSeconds);
+        pendingTimeoutSeconds = null;
+      }
+      steps.add(drive.withName("BLineDrive"));
+    }
+
+    pendingWaypoints.clear();
+    pendingMaxSpeeds.clear();
   }
 }

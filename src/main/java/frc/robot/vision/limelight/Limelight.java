@@ -105,9 +105,10 @@ public class Limelight extends StateMachine<LimelightState> {
       var xyDev = 0.01 * Math.pow(distance, 1.2);
       var thetaDev = 0.03 * Math.pow(distance, 1.2);
 
-      devs = VecBuilder.fill(xyDev, xyDev, thetaDev);
+      boolean isTeleop = edu.wpi.first.wpilibj.DriverStation.isTeleop();
+      devs = VecBuilder.fill(xyDev, xyDev, isTeleop ? thetaDev : Double.MAX_VALUE);
 
-      if (distance <= USE_MT1_DISTANCE_THRESHOLD) {
+      if (isTeleop && distance <= USE_MT1_DISTANCE_THRESHOLD) {
         var mT1Result = LimelightHelpers.getBotPoseEstimate_wpiBlue(limelightTableName);
         if (mT1Result != null
             && mT1Result.tagCount != 0
@@ -117,7 +118,7 @@ public class Limelight extends StateMachine<LimelightState> {
       }
     }
 
-    tagResult = tagResult.update(mt2Pose, mT2Estimate.timestampSeconds, devs);
+    tagResult = tagResult.update(mt2Pose, mT2Estimate.timestampSeconds, devs, mT2Estimate.tagCount);
     updateHealth(tagResult);
     return tagResult;
   }

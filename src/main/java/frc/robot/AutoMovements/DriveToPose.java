@@ -3,7 +3,6 @@ package frc.robot.AutoMovements;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -13,7 +12,9 @@ import frc.robot.localization.LocalizationSubsystem;
 import frc.robot.swerve.SwerveSubsystem;
 
 public class DriveToPose extends Command {
-  private static final double MAX_SPEED = 3.0; 
+  private static final double MAX_SPEED = 6;
+  private static final double MAX_ACCEL = 3.5;
+  private static final double DT = 0.02;
   private static final double DRIVE_TOLERANCE = 0.5; 
   private static final double THETA_TOLERANCE = 5.0; 
 
@@ -25,29 +26,33 @@ public class DriveToPose extends Command {
   private final SwerveSubsystem swerve;
   private final LocalizationSubsystem localization;
   private final Supplier<Pose2d> targetSupplier;
-  private final PIDController xController = new PIDController(4.0, 0.0, 0.0);
-  private final PIDController yController = new PIDController(4.0, 0.0, 0.0);
+  private final PIDController xController = new PIDController(3, 0.0, 0.0);
+  private final PIDController yController = new PIDController(3, 0.0, 0.0);
   private final PIDController thetaController = new PIDController(4.0, 0.0, 0.1);
 
   private final boolean simultaneous;
+  private final double maxSpeed;
 
   private Pose2d targetPose;
   private Phase phase;
+  private double prevVx = 0.0;
+  private double prevVy = 0.0;
 
-  /** Phased driving: Y+heading first, then all axes. */
   public DriveToPose(SwerveSubsystem swerve, LocalizationSubsystem localization, Supplier<Pose2d> target) {
-    this(swerve, localization, target, false);
+    this(swerve, localization, target, false, MAX_SPEED);
   }
 
-  /**
-   * @param simultaneous If true, drives X, Y, and rotation all at once from the start.
-   *                     If false, uses the default phased approach (Y+heading first, then all).
-   */
   public DriveToPose(SwerveSubsystem swerve, LocalizationSubsystem localization, Supplier<Pose2d> target, boolean simultaneous) {
+    this(swerve, localization, target, simultaneous, MAX_SPEED);
+  }
+
+
+  public DriveToPose(SwerveSubsystem swerve, LocalizationSubsystem localization, Supplier<Pose2d> target, boolean simultaneous, double maxSpeed) {
     this.swerve = swerve;
     this.localization = localization;
     this.targetSupplier = target;
     this.simultaneous = simultaneous;
+    this.maxSpeed = (maxSpeed > 0) ? maxSpeed : MAX_SPEED;
     thetaController.enableContinuousInput(-Math.PI, Math.PI);
     addRequirements(swerve);
   }
@@ -59,7 +64,8 @@ public class DriveToPose extends Command {
     yController.reset();
     thetaController.reset();
     phase = simultaneous ? Phase.ALL : Phase.Y_AND_HEADING;
-
+    prevVx = 0.0;
+    prevVy = 0.0;
     SmartDashboard.putString("DriveToPose/Target",
         String.format("(%.2f, %.2f, %.1f deg)", targetPose.getX(), targetPose.getY(),
             targetPose.getRotation().getDegrees()));
@@ -68,40 +74,40 @@ public class DriveToPose extends Command {
   @Override
   public void execute() {
     Pose2d current = localization.getPose();
-
     double ySpeed = yController.calculate(current.getY(), targetPose.getY());
     double thetaSpeed = thetaController.calculate(
         current.getRotation().getRadians(), targetPose.getRotation().getRadians());
     thetaSpeed = MathUtil.clamp(thetaSpeed, -Math.PI * 2, Math.PI * 2);
-
     double xSpeed = 0.0;
     double yError = Math.abs(current.getY() - targetPose.getY());
     double thetaError = Math.abs(current.getRotation().minus(targetPose.getRotation()).getDegrees());
-
-    // Phase 1: drive Y and heading, no X
-    // Phase 2: once Y and heading are roughly close, correct all axes together
     if (phase == Phase.Y_AND_HEADING) {
       if (yError < PHASE_TRANSITION_Y_TOLERANCE && thetaError < PHASE_TRANSITION_THETA_TOLERANCE) {
         phase = Phase.ALL;
       }
     }
-
     if (phase == Phase.ALL) {
       xSpeed = xController.calculate(current.getX(), targetPose.getX());
     }
-
-    // Clamp linear speed
     Translation2d linearVelocity = new Translation2d(xSpeed, ySpeed);
     double magnitude = linearVelocity.getNorm();
-    if (magnitude > MAX_SPEED) {
-      linearVelocity = linearVelocity.times(MAX_SPEED / magnitude);
+    if (magnitude > maxSpeed) {
+      linearVelocity = linearVelocity.times(maxSpeed / magnitude);
     }
-
-    // Send as field-relative speeds
-    swerve.setFieldRelativeAutoSpeeds(new ChassisSpeeds(
-        linearVelocity.getX(), linearVelocity.getY(), thetaSpeed));
-
-    // Telemetry
+    double maxDelta = MAX_ACCEL * DT;
+    double dvx = linearVelocity.getX() - prevVx;
+    double dvy = linearVelocity.getY() - prevVy;
+    double deltaMag = Math.hypot(dvx, dvy);
+    if (deltaMag > maxDelta) {
+      double scale = maxDelta / deltaMag;
+      dvx *= scale;
+      dvy *= scale;
+    }
+    double outVx = prevVx + dvx;
+    double outVy = prevVy + dvy;
+    prevVx = outVx;
+    prevVy = outVy;
+    swerve.setFieldRelativeAutoSpeeds(new ChassisSpeeds(outVx, outVy, thetaSpeed));
     double driveError = current.getTranslation().getDistance(targetPose.getTranslation());
     SmartDashboard.putNumber("DriveToPose/DriveError", driveError);
     SmartDashboard.putNumber("DriveToPose/YError", yError);
@@ -112,7 +118,6 @@ public class DriveToPose extends Command {
 
   @Override
   public void end(boolean interrupted) {
-    // Stop driving
     swerve.setFieldRelativeAutoSpeeds(new ChassisSpeeds(0, 0, 0));
   }
 
@@ -135,6 +140,5 @@ public class DriveToPose extends Command {
   public double getDistanceToTarget() {
     if (targetPose == null) return Double.MAX_VALUE;
     return localization.getPose().getTranslation().getDistance(targetPose.getTranslation());
-
   }
 }
