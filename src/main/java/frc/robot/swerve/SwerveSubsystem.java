@@ -98,6 +98,40 @@ public class SwerveSubsystem extends StateMachine<SwerveState> {
     return drivetrainState;
   }
 
+  public double[] getDriveStatorCurrents() {
+    var modules = drivetrain.getModules();
+    double[] currents = new double[modules.length];
+    for (int i = 0; i < modules.length; i++) {
+      try {
+        currents[i] = modules[i].getDriveMotor().getStatorCurrent().getValueAsDouble();
+      } catch (Exception ex) {
+        currents[i] = 0.0;
+      }
+    }
+    return currents;
+  }
+
+  public double getDriveStatorCurrentAvg() {
+    double[] currents = getDriveStatorCurrents();
+    if (currents.length == 0) {
+      return 0.0;
+    }
+    double sum = 0.0;
+    for (double current : currents) {
+      sum += current;
+    }
+    return sum / currents.length;
+  }
+
+  public double getDriveStatorCurrentMax() {
+    double[] currents = getDriveStatorCurrents();
+    double max = 0.0;
+    for (double current : currents) {
+      max = Math.max(max, current);
+    }
+    return max;
+  }
+
   public void setSnapToAngle(double angle) {
     goalSnapAngle = angle;
 

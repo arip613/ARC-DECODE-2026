@@ -13,9 +13,9 @@ import frc.robot.util.state_machines.StateMachine;
 public class intaker extends StateMachine<intaker.State> {
 	public enum State { OFF, INTAKE, FEED, REVERSE, AUTO }
 
-	private static final double INTAKE_POWER = 10;
-	private static final double FEED_POWER = 9;
-	private static final double REVERSE_POWER = -4;
+	private static final double INTAKE_POWER = 12;
+	private static final double FEED_POWER = 12;
+	private static final double REVERSE_POWER = -12;
 	private static final double AUTO = 11;
 
 	private final TalonFX motorA;
@@ -29,9 +29,9 @@ public class intaker extends StateMachine<intaker.State> {
 
 		var cfg = new TalonFXConfiguration();
 		cfg.CurrentLimits = new CurrentLimitsConfigs()
-				.withSupplyCurrentLimit(20) //45
+				.withSupplyCurrentLimit(30) //45
 				.withSupplyCurrentLimitEnable(true)
-				.withStatorCurrentLimit(40) //50
+				.withStatorCurrentLimit(50) //50
 				.withStatorCurrentLimitEnable(true);
 		motorA.getConfigurator().apply(cfg);
 		motorB.getConfigurator().apply(cfg);

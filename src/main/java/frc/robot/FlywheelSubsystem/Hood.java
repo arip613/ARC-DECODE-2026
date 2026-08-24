@@ -13,8 +13,8 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Hood {
 	private static final double GEAR_RATIO = 84.0; 
-	private static final double MIN_DEG = -360;
-	private static final double MAX_DEG = 360;
+	private static final double MIN_DEG = -40;
+	private static final double MAX_DEG = 40;
 	private static final double AT_GOAL_TOL_DEG = 0.1;
 
 	private final TalonFX motor;
@@ -31,9 +31,9 @@ public class Hood {
 						.withMotionMagicCruiseVelocity(100.0)
 						.withMotionMagicAcceleration(120);
 		cfg.CurrentLimits = new CurrentLimitsConfigs()
-				.withSupplyCurrentLimit(40.0)
+				.withSupplyCurrentLimit(20.0)
 				.withSupplyCurrentLimitEnable(true)
-				.withStatorCurrentLimit(60.0)
+				.withStatorCurrentLimit(40.0)
 				.withStatorCurrentLimitEnable(true);
 
 		motor.getConfigurator().apply(cfg);

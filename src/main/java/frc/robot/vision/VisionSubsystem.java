@@ -9,6 +9,7 @@ import frc.robot.util.state_machines.StateMachine;
 import frc.robot.vision.limelight.Limelight;
 import frc.robot.vision.limelight.LimelightState;
 import frc.robot.vision.results.OptionalTagResult;
+import java.util.function.DoubleSupplier;
 
 public class VisionSubsystem extends StateMachine<VisionState> {
   private final Debouncer seeingTagDebouncer = new Debouncer(1.0, DebounceType.kFalling);
@@ -16,6 +17,7 @@ public class VisionSubsystem extends StateMachine<VisionState> {
       new Debouncer(5.0, DebounceType.kFalling);
 
   private final ImuSubsystem imu;
+  private final DoubleSupplier headingSupplier;
   private final Limelight leftLimelight;
   private final Limelight rightLimelight;
 
@@ -34,9 +36,11 @@ public class VisionSubsystem extends StateMachine<VisionState> {
   private boolean seeingTagDebounced = false;
   private boolean seenTagRecentlyForReset = true;
 
-  public VisionSubsystem(ImuSubsystem imu, Limelight leftLimelight, Limelight rightLimelight) {
+  public VisionSubsystem(ImuSubsystem imu, DoubleSupplier headingSupplier,
+                         Limelight leftLimelight, Limelight rightLimelight) {
     super(SubsystemPriority.VISION, VisionState.TAGS);
     this.imu = imu;
+    this.headingSupplier = headingSupplier;
     this.leftLimelight = leftLimelight;
     this.rightLimelight = rightLimelight;
   }
@@ -44,7 +48,7 @@ public class VisionSubsystem extends StateMachine<VisionState> {
   @Override
   protected void collectInputs() {
     angularVelocity = imu.getRobotAngularVelocity();
-    robotHeading = imu.getRobotHeading(); // keep MT2 seeded with real Pigeon heading
+    robotHeading = headingSupplier.getAsDouble(); // CTRE offset-corrected heading for MT2
     pitch = imu.getPitch();
     pitchRate = imu.getPitchRate();
     roll = imu.getRoll();

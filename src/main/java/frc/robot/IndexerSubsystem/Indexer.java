@@ -1,6 +1,11 @@
 package frc.robot.IndexerSubsystem;
 
+import com.ctre.phoenix6.configs.CurrentLimitsConfigs;
 import com.ctre.phoenix6.controls.DutyCycleOut;
+import com.ctre.phoenix6.configs.CurrentLimitsConfigs;
+import com.ctre.phoenix6.configs.TalonFXConfiguration;
+import com.ctre.phoenix6.configs.CurrentLimitsConfigs;
+import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.hardware.TalonFX;
 import frc.robot.util.scheduling.SubsystemPriority;
 import frc.robot.util.state_machines.StateMachine;
@@ -8,8 +13,8 @@ import frc.robot.util.state_machines.StateMachine;
 public class Indexer extends StateMachine<Indexer.IndexerState> {
   public enum IndexerState { OFF, INTAKE, FEED, REVERSE }
 
-  public static final double INTAKE_POWER = -0.7;
-    public static final double FEED_POWER = -0.7;
+  public static final double INTAKE_POWER = -0.9;
+    public static final double FEED_POWER = -0.9;
   public static final double REVERSE_POWER = -0.5;
 
   private final TalonFX indexerA;
@@ -18,6 +23,16 @@ public class Indexer extends StateMachine<Indexer.IndexerState> {
 
   public Indexer(TalonFX indexerA, TalonFX indexerB) {
     super(SubsystemPriority.DEPLOY, IndexerState.OFF);
+     var cfg = new TalonFXConfiguration();
+
+    cfg.CurrentLimits = new CurrentLimitsConfigs()
+				.withSupplyCurrentLimit(40)
+				.withSupplyCurrentLimitEnable(true)
+				.withStatorCurrentLimit(60)
+				.withStatorCurrentLimitEnable(true);
+		indexerA.getConfigurator().apply(cfg);
+    indexerB.getConfigurator().apply(cfg);
+    
     this.indexerA = indexerA;
     this.indexerB = indexerB;
   }

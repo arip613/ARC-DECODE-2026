@@ -33,12 +33,15 @@ import frc.robot.currentPhase.phaseTimer;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj.GenericHID.RumbleType;
+import edu.wpi.first.wpilibj.simulation.RoboRioSim;
+
 import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.auto.NamedCommands;
 import com.pathplanner.lib.config.PIDConstants;
 import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 import com.ctre.phoenix6.Orchestra;
+import com.ctre.phoenix6.SignalLogger;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Transform2d;
 import edu.wpi.first.math.geometry.Translation2d;
@@ -55,7 +58,10 @@ public class Robot extends TimedRobot {
   private final SwerveSubsystem swerve = new SwerveSubsystem();
   private final ImuSubsystem imu = new ImuSubsystem(swerve.drivetrainPigeon);
 
-  private final VisionSubsystem vision = new VisionSubsystem(imu, hardware.leftLimelight, hardware.rightLimelight);
+  private final VisionSubsystem vision = new VisionSubsystem(
+      imu,
+      () -> swerve.getDrivetrainState().Pose.getRotation().getDegrees(),
+      hardware.leftLimelight, hardware.rightLimelight);
   private final LocalizationSubsystem localization = new LocalizationSubsystem(imu, vision, swerve);
   private final HeadingLock headingLock = new HeadingLock(localization, swerve);
   private final DistanceCalc distanceCalc = new DistanceCalc(localization, headingLock);
@@ -184,7 +190,7 @@ public class Robot extends TimedRobot {
 
   @Override
   public void robotInit() {
-
+    SignalLogger.enableAutoLogging(false);
   }
 
   @Override
@@ -234,14 +240,12 @@ public class Robot extends TimedRobot {
   public void teleopInit() {
     // Cancel all auto commands but keep the current pose
     CommandScheduler.getInstance().cancelAll();
-
     // Stop all mechanisms
   drum.stop();
     hood.stopMotor();
     indexer.stop();
     hopper.stop();
     intakeRoller.stop();
-    intakePosition.retract();
     headingLock.disableLock();
     turretLookup.disable();
   drumSM.requestOff();
@@ -396,22 +400,19 @@ public class Robot extends TimedRobot {
     );
 
 
-    hardware.driverController.leftBumper().whileTrue(
-      Commands.run(() -> {
-        double robotY = localization.getPose().getY();
-        double targetY = (Math.abs(robotY - 0.7) <= Math.abs(robotY - 7.45)) ? 0.7 : 7.45;
-        double vy = trenchYController.calculate(robotY, targetY);
-        swerve.overrideTeleopVY(vy);
-        if (ENABLE_DASHBOARD) {
-          SmartDashboard.putBoolean("Trench/Locked", true);
-          SmartDashboard.putNumber("Trench/TargetY", targetY);
+    hardware.operatorController.y().whileTrue(
+      edu.wpi.first.wpilibj2.command.Commands.startEnd(
+        () -> {
+          drum.dutyCycle(1);
+  
+        },
+        () -> {
+         drum.dutyCycle(0);
+    
         }
-      }).finallyDo(() -> {
-        swerve.clearTeleopVYOverride();
-        trenchYController.reset();
-        if (ENABLE_DASHBOARD) SmartDashboard.putBoolean("Trench/Locked", false);
-      })
+      )
     );
+  
       hardware.operatorController.leftTrigger(0.1).whileTrue(
       edu.wpi.first.wpilibj2.command.Commands.startEnd(
         () -> {
@@ -427,33 +428,42 @@ public class Robot extends TimedRobot {
 
     
 
-    hardware.operatorController.rightBumper().whileTrue(
+    hardware.driverController.rightBumper().whileTrue(
       edu.wpi.first.wpilibj2.command.Commands.startEnd(
         () -> {
-          hood.runDutyCycle(0.2);
+          intakePosition.pulse();
   
         },
         () -> {
-         hood.runDutyCycle(0.0);
-    
+intakePosition.deploy();    
         }
       )
     );
     
-    hardware.operatorController.leftBumper().whileTrue(
+    hardware.driverController.leftBumper().whileTrue(
       edu.wpi.first.wpilibj2.command.Commands.startEnd(
         () -> {
-          hood.runDutyCycle(-0.2);
+          intakeRoller.reverse();
   
         },
         () -> {
-         hood.runDutyCycle(0.0);
+         intakeRoller.stop();
     
         }
       )
     );
 
-
+    hardware.driverController.povUp().whileTrue(
+      edu.wpi.first.wpilibj2.command.Commands.startEnd(
+        () -> {
+          intakePosition.retract();
+  
+        },
+        () -> {
+          intakePosition.deploy();
+        }
+      )
+    );
 
 
     
@@ -464,7 +474,7 @@ public class Robot extends TimedRobot {
           
         intakePosition.deploy();
         intakeRoller.intake();
-        hopper.feed();
+        hopper.setDutyPercent(0.6);
 
   
         },
@@ -482,6 +492,26 @@ public class Robot extends TimedRobot {
    hardware.driverController.x().whileTrue(
       outpost.travelToOutpost()
     );
+
+    // Y button: quick pass at 2100 RPM
+    hardware.driverController.y().whileTrue(
+      edu.wpi.first.wpilibj2.command.Commands.startEnd(
+        () -> {
+          drum.spinDrum(2100);
+          hood.setAngleDegrees(-40);
+          hopper.feed();
+          indexer.feed();
+        },
+        () -> {
+          drum.stop();
+          hood.setAngleDegrees(0);
+          hopper.stop();
+          indexer.stop();
+        }
+      )
+    );
+
+
 
   
     swerve.setDefaultCommand(
@@ -515,19 +545,8 @@ public class Robot extends TimedRobot {
             hopper.feed();
             if (ENABLE_DASHBOARD) SmartDashboard.putBoolean("Driver/ShootingActive", true);
           } else {
-            savedRedTarget = headingLock.getRedTargetPoint();
-            savedBlueTarget = headingLock.getBlueTargetPoint();
-
-            Translation2d robotPos = localization.getPose().getTranslation();
-            Translation2d passRight = FieldPoints.getAlliancePassTargetRight();
-            Translation2d passLeft = FieldPoints.getAlliancePassTargetLeft();
-            double distRight = robotPos.getDistance(passRight);
-            double distLeft = robotPos.getDistance(passLeft);
-            activePassTarget = distRight < distLeft ? passRight : passLeft;
-
-            headingLock.setRedTargetPoint(activePassTarget);
-            headingLock.setBlueTargetPoint(activePassTarget);
-            headingLock.enableForAlliance();
+            double passHeading = FmsSubsystem.isRedAlliance() ? 0.0 : 180.0;
+            swerve.snapsDriveRequest(passHeading);
             hopper.feed();
             if (ENABLE_DASHBOARD) SmartDashboard.putBoolean("Driver/PassingActive", true);
           }
@@ -541,19 +560,19 @@ public class Robot extends TimedRobot {
             drumSM.requestOff();
             hoodSM.requestOff();
             hood.setAngleDegrees(0);
+            intakePosition.deploy();
             indexer.stop();
             intakeRoller.stop();
             hopper.stop();
             if (ENABLE_DASHBOARD) SmartDashboard.putBoolean("Driver/ShootingActive", false);
           } else {
-            headingLock.setRedTargetPoint(savedRedTarget);
-            headingLock.setBlueTargetPoint(savedBlueTarget);
-            headingLock.disableLock();
+            swerve.normalDriveRequest();
             drum.stop();
             hood.setAngleDegrees(0);
             indexer.stop();
             intakeRoller.stop();
             hopper.stop();
+            intakePosition.deploy();
             if (ENABLE_DASHBOARD) SmartDashboard.putBoolean("Driver/PassingActive", false);
           }
         }
@@ -589,18 +608,23 @@ public class Robot extends TimedRobot {
               hopper.stop();
             }
           } else {
-            double dist = localization.getPose().transformBy(
-                new Transform2d(FieldPoints.SHOOTER_POSE.getTranslation(), FieldPoints.SHOOTER_POSE.getRotation()))
-                .getTranslation().getDistance(activePassTarget);
-            double rpm = LookupTable.getPassRpm(dist);
-            drum.spinDrum(rpm);
-            hood.setAngleDegrees(LookupTable.PASS_HOOD_ANGLE_DEG);
+            double passHeading = FmsSubsystem.isRedAlliance() ? 0.0 : 180.0;
+            //
+            swerve.snapsDriveRequest(passHeading);
+            drum.spinDrum(3500);
+            hood.setAngleDegrees(-40);
+
+            double currentHeading = localization.getPose().getRotation().getDegrees();
+            double headingError = passHeading - currentHeading;
+            headingError = ((headingError + 180.0) % 360.0 + 360.0) % 360.0 - 180.0;
+            boolean headingGood = Math.abs(headingError) <= 5.0;
+
             if (ENABLE_DASHBOARD) {
-              SmartDashboard.putNumber("Pass/Distance", dist);
-              SmartDashboard.putNumber("Pass/RPM", rpm);
-              SmartDashboard.putBoolean("Pass/HoodAligned", hood.isAtGoal());
+              SmartDashboard.putNumber("Pass/RPM", 2500);
+              SmartDashboard.putNumber("Pass/HeadingError", headingError);
+              SmartDashboard.putBoolean("Pass/HeadingGood", headingGood);
             }
-            if (headingLock.isSettled() && hood.isAtGoal()) {
+            if (headingGood) {
               indexer.feed();
               hopper.feed();
             } else {
@@ -609,6 +633,11 @@ public class Robot extends TimedRobot {
             }
           }
         })
+      ).alongWith(
+        edu.wpi.first.wpilibj2.command.Commands.sequence(
+          edu.wpi.first.wpilibj2.command.Commands.waitSeconds(1.75),
+          edu.wpi.first.wpilibj2.command.Commands.runOnce(() -> intakePosition.shooter())
+        )
       )
     );
 

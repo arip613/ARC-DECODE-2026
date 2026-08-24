@@ -8,8 +8,10 @@ import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.geometry.Twist2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import frc.robot.fms.FmsSubsystem;
 import frc.robot.util.scheduling.SubsystemPriority;
 import frc.robot.util.state_machines.StateMachine;
+import frc.robot.vision.limelight.LimelightHelpers;
 import edu.wpi.first.math.interpolation.InterpolatingDoubleTreeMap;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -35,11 +37,13 @@ public class LookupTable extends StateMachine<LookupTable.State> {
 
     public static class ShotPoint {
         public final double distanceMeters;
+        public final double ta;
         public final double rpm;
         public final double hoodAngleDeg;
 
-        public ShotPoint(double distanceMeters, double rpm, double hoodAngleDeg) {
+        public ShotPoint(double distanceMeters, double ta, double rpm, double hoodAngleDeg) {
             this.distanceMeters = distanceMeters;
+            this.ta             = ta;
             this.rpm            = rpm;
             this.hoodAngleDeg   = hoodAngleDeg;
         }
@@ -63,6 +67,11 @@ public class LookupTable extends StateMachine<LookupTable.State> {
             double     distanceNoLookahead,
             double     timeOfFlight) {}
 
+    // Same limelight + tags as HeadingLock tX
+    private static final String LIMELIGHT_LEFT = "limelight-left";
+    private static final int[] RED_TAG_PRIORITY = {10, 5, 2};
+    private static final int[] BLUE_TAG_PRIORITY = {26, 21, 18};
+
     private static final double PHASE_DELAY_SECS = 0.03;
     private static final double MIN_DISTANCE = 1.0;
     private static final double MAX_DISTANCE = 6.0;
@@ -71,7 +80,7 @@ public class LookupTable extends StateMachine<LookupTable.State> {
     private static final int HOOD_FILTER_TAPS  = 20;
     private static final int DRIVE_FILTER_TAPS = 75;
     private static final double RPM_TOLERANCE      = 75.0;
-    private static final double HOOD_TOLERANCE_DEG =  1.0;
+    private static final double HOOD_TOLERANCE_DEG =  0.5;
 
     private final List<ShotPoint> shotPoints = new ArrayList<>();
     private final List<TofPoint>  tofPoints  = new ArrayList<>();
@@ -97,9 +106,12 @@ public class LookupTable extends StateMachine<LookupTable.State> {
         this.drum     = drum;
         this.hood         = hood;
 // do your job he
-     addShotPoint(new ShotPoint(1.05, 1900, -5));
-     addShotPoint(new  ShotPoint(2.92936, 2300, -23));
-    
+    //                      distance, tA,  RPM,  hood
+     addShotPoint(new ShotPoint(1.32, 0.5, 2200, -15));
+    addShotPoint(new ShotPoint(2.1,  0.39, 2250, -20));
+     addShotPoint(new ShotPoint(2.5,  0.23, 2350, -23));
+     addShotPoint(new ShotPoint(2.92936, 0.14, 2400, -33));
+     addShotPoint(new ShotPoint(4,   0.08, 2750 + 80, -36));
 
 
         //addTofPoint(4, 0.4);
@@ -209,14 +221,34 @@ public class LookupTable extends StateMachine<LookupTable.State> {
         if (getState() != State.ENABLED) return;
 
         ShootingParameters p = getParameters();
-        if (!p.isValid()) return;
 
-    drum.spinDrum(p.flywheelRpm());
-        hood.setAngleDegrees(Math.toDegrees(p.hoodAngleRad()));
+        // If a priority tag is visible, use tA for RPM + hood directly
+        Double ta = getPriorityTagTa();
+        double activeRpm;
+        double activeHoodDeg;
+
+        if (ta != null) {
+            double[] taShot = lookupShotByTa(ta);
+            activeRpm = taShot[0];
+            activeHoodDeg = taShot[1];
+            SmartDashboard.putBoolean("Shooter/UsingTA", true);
+            SmartDashboard.putNumber("Shooter/TA", ta);
+        } else {
+            activeRpm = p.flywheelRpm();
+            activeHoodDeg = Math.toDegrees(p.hoodAngleRad());
+            SmartDashboard.putBoolean("Shooter/UsingTA", false);
+        }
+
+        // Always spin the drum so it's ready even if aim isn't valid yet
+        drum.spinDrum(activeRpm);
+
+        if (!p.isValid() && ta == null) return;
+
+        hood.setAngleDegrees(activeHoodDeg);
 
         boolean inTol =
-        Math.abs(drum.getRpm()      - p.flywheelRpm())                  <= RPM_TOLERANCE
-             && Math.abs(hood.getAngleDegrees() - Math.toDegrees(p.hoodAngleRad())) <= HOOD_TOLERANCE_DEG;
+        Math.abs(drum.getRpm()      - activeRpm)                  <= RPM_TOLERANCE
+             && Math.abs(hood.getAngleDegrees() - activeHoodDeg)  <= HOOD_TOLERANCE_DEG;
 
         atGoal = atGoalDebouncer.calculate(inTol);
         SmartDashboard.putBoolean("Shooter/AtGoal", atGoal);
@@ -253,6 +285,45 @@ public class LookupTable extends StateMachine<LookupTable.State> {
         }
         ShotPoint last = shotPoints.get(shotPoints.size() - 1);
         return new double[]{last.rpm, last.hoodAngleDeg};
+    }
+
+    /** Interpolate RPM + hood by tA. Shot points are sorted by distance (ascending),
+     *  which means tA is descending (closer = bigger tA). We sort a copy by tA for lookup. */
+    private double[] lookupShotByTa(double ta) {
+        if (shotPoints.isEmpty()) return new double[]{0, 0};
+        // Build a tA-sorted view (ascending tA = farther away)
+        List<ShotPoint> byTa = new ArrayList<>(shotPoints);
+        byTa.sort(Comparator.comparingDouble(sp -> sp.ta));
+
+        if (ta <= byTa.get(0).ta) {
+            ShotPoint p = byTa.get(0);
+            return new double[]{p.rpm, p.hoodAngleDeg};
+        }
+        for (int i = 1; i < byTa.size(); i++) {
+            ShotPoint lo = byTa.get(i - 1), hi = byTa.get(i);
+            if (ta <= hi.ta) {
+                double t = (ta - lo.ta) / (hi.ta - lo.ta);
+                return new double[]{
+                        lo.rpm          + t * (hi.rpm          - lo.rpm),
+                        lo.hoodAngleDeg + t * (hi.hoodAngleDeg - lo.hoodAngleDeg)
+                };
+            }
+        }
+        ShotPoint last = byTa.get(byTa.size() - 1);
+        return new double[]{last.rpm, last.hoodAngleDeg};
+    }
+
+    /** Get tA from the left limelight if a priority tag is visible. Returns null if no tag. */
+    private Double getPriorityTagTa() {
+        if (!LimelightHelpers.getTV(LIMELIGHT_LEFT)) return null;
+        int fiducial = (int) LimelightHelpers.getFiducialID(LIMELIGHT_LEFT);
+        int[] priority = FmsSubsystem.isRedAlliance() ? RED_TAG_PRIORITY : BLUE_TAG_PRIORITY;
+        for (int tagId : priority) {
+            if (fiducial == tagId) {
+                return LimelightHelpers.getTA(LIMELIGHT_LEFT);
+            }
+        }
+        return null;
     }
 
     private ChassisSpeeds computeLauncherVelocity(ChassisSpeeds robotRelVel, Rotation2d robotAngle) {

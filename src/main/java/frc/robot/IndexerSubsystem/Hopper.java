@@ -29,9 +29,9 @@ public class Hopper extends StateMachine<Hopper.HopperState> {
     super(SubsystemPriority.DEPLOY, HopperState.OFF);
     var cfg = new TalonFXConfiguration();
 		cfg.CurrentLimits = new CurrentLimitsConfigs()
-				.withSupplyCurrentLimit(20)
+				.withSupplyCurrentLimit(40)
 				.withSupplyCurrentLimitEnable(true)
-				.withStatorCurrentLimit(40)
+				.withStatorCurrentLimit(60)
 				.withStatorCurrentLimitEnable(true);
 		Hopper.getConfigurator().apply(cfg);
     Hopper.getConfigurator().apply(cfg);
@@ -45,10 +45,6 @@ public class Hopper extends StateMachine<Hopper.HopperState> {
 
   public void pulse() { setStateFromRequest(HopperState.PULSE); }
 
-  /**
-   * Set an arbitrary duty cycle percent and enter FEED state.
-   * Percent is clamped to [-1.0, 1.0].
-   */
   public void setDutyPercent(double percent) {
     dutyPercent = Math.max(-1.0, Math.min(1.0, percent));
     setStateFromRequest(HopperState.FEED);

@@ -20,9 +20,13 @@ public class HeadingLock extends StateMachine<HeadingLock.HeadingLockState> {
   private Translation2d blueTargetPoint = new Translation2d();
   private double operatorOverrideDeg = 0.0;
 
-  private static final String LIMELIGHT_LEFT = "limelight-right";
-  private static final double TX_SWITCH_DEG = 10.0;
+  private static final String LIMELIGHT_LEFT = "limelight-left";
+  private static final double TX_SWITCH_DEG = 360;
   private static final int[] RED_TAG_PRIORITY = {10, 5, 2};
+  private static final int[] BLUE_TAG_PRIORITY = {26, 21, 18};
+  
+  private static final String USE_TX_KEY = "HeadingLock/UseTx";
+  private boolean useTxCheck = true; //-0.5842
 
   private static final double HEADING_TOLERANCE_DEG = 2;
   private double lastTargetAngleDeg = 0.0;
@@ -44,6 +48,7 @@ public class HeadingLock extends StateMachine<HeadingLock.HeadingLockState> {
     super(SubsystemPriority.SWERVE, HeadingLockState.DISABLED);
     this.localization = localization;
     this.swerve = swerve;
+    SmartDashboard.putBoolean(USE_TX_KEY, useTxCheck);
   }
 
   public void setRedTargetPoint(Translation2d point) {
@@ -121,6 +126,7 @@ public class HeadingLock extends StateMachine<HeadingLock.HeadingLockState> {
 
   @Override
   protected void collectInputs() {
+    useTxCheck = SmartDashboard.getBoolean(USE_TX_KEY, useTxCheck);
     var shooterTranslation = getShooterFieldPose().getTranslation();
     SmartDashboard.putNumber("HeadingLock/DistTloRed_m",
         shooterTranslation.getDistance(redTargetPoint));
@@ -157,7 +163,7 @@ public class HeadingLock extends StateMachine<HeadingLock.HeadingLockState> {
     poseError = ((poseError + 180.0) % 360.0 + 360.0) % 360.0 - 180.0;
 
     Double txDegrees = null;
-    if (Math.abs(poseError) <= TX_SWITCH_DEG && FmsSubsystem.isRedAlliance()) {
+    if (useTxCheck && Math.abs(poseError) <= TX_SWITCH_DEG) {
       txDegrees = getPriorityTagTx();
     }
 
@@ -183,7 +189,8 @@ public class HeadingLock extends StateMachine<HeadingLock.HeadingLockState> {
   }
 
   private Double getPriorityTagTx() {
-    for (int tagId : RED_TAG_PRIORITY) {
+    int[] priority = FmsSubsystem.isRedAlliance() ? RED_TAG_PRIORITY : BLUE_TAG_PRIORITY;
+    for (int tagId : priority) {
       Double tx = getTxForTag(tagId);
       if (tx != null) {
         return tx;

@@ -20,14 +20,16 @@ public class Drum {
       new VelocityTorqueCurrentFOC(0).withSlot(0);
   private final DutyCycleOut dutyCycleRequest = new DutyCycleOut(0);
 
+  public static final double kS = 0.3;
   public static final double kV = 0.225;
-  public static final double kP = 0;
+  public static final double kP = 11;
+  public static final double MAX_ACCEL_RPS2 = 350;
 
-  public static final double SUPPLY_LIMIT = 100; //60
-  public static final double STATOR_LIMIT = 120; //80
-  public static final double TORQUE_CURRENT_LIMIT = 120; //80
+  public static final double SUPPLY_LIMIT = 60; //60
+  public static final double STATOR_LIMIT = 80; //80
+  public static final double TORQUE_CURRENT_LIMIT = 80; //80
 
-  public static final double RPM_TOLERANCE = 40;
+  public static final double RPM_TOLERANCE = 80;
   public static final double AT_GOAL_DEBOUNCE_TIME = 0.06;
 
   private static final double DRUM_OUTPUT_SIGN = -1.0;
@@ -42,6 +44,7 @@ public class Drum {
   private boolean atGoal = false;
   private double liveKP = kP;
   private double liveKV = kV;
+  private double liveKS = kS;
 
   public Drum(TalonFX a1, TalonFX a2, TalonFX a3, TalonFX a4) {
     this.a1 = a1;
@@ -51,38 +54,41 @@ public class Drum {
 
     var cfg = new TalonFXConfiguration();
 
-    cfg.Slot0 = new Slot0Configs()
-        .withKV(kV)
-        .withKP(kP);
+  cfg.Slot0 = new Slot0Configs()
+    .withKS(kS)
+    .withKV(kV)
+    .withKP(kP);
 
     cfg.CurrentLimits = new CurrentLimitsConfigs()
         .withSupplyCurrentLimit(SUPPLY_LIMIT)
         .withSupplyCurrentLimitEnable(true)
         .withStatorCurrentLimit(STATOR_LIMIT)
-        .withStatorCurrentLimitEnable(true);
-
-    cfg.TorqueCurrent = new TorqueCurrentConfigs()
-        .withPeakForwardTorqueCurrent(TORQUE_CURRENT_LIMIT)
-        .withPeakReverseTorqueCurrent(-TORQUE_CURRENT_LIMIT);
+        .withStatorCurrentLimitEnable(false);
 
     a1.getConfigurator().apply(cfg);
     a2.getConfigurator().apply(cfg);
     a3.getConfigurator().apply(cfg);
     a4.getConfigurator().apply(cfg);
-
+// charkie was here
+// Ray smells terrible
+// also like shit 
+// this robot is so great
+// Ray is a terrible human being
+// Also a terrible human player (HP)
     a1.getConfigurator().apply(new MotorOutputConfigs().withInverted(DRUM_FORWARD));
     a2.getConfigurator().apply(new MotorOutputConfigs().withInverted(DRUM_FORWARD));
     a3.getConfigurator().apply(new MotorOutputConfigs().withInverted(DRUM_REVERSED));
     a4.getConfigurator().apply(new MotorOutputConfigs().withInverted(DRUM_REVERSED));
 
-    SmartDashboard.putNumber("Drum/Tuning/kP", kP);
-    SmartDashboard.putNumber("Drum/Tuning/kV", kV);
+  SmartDashboard.putNumber("Drum/Tuning/kP", kP);
+  SmartDashboard.putNumber("Drum/Tuning/kV", kV);
+  SmartDashboard.putNumber("Drum/Tuning/kS", kS);
   }
 
   public void dutyCycle(double power) {
     targetRpm = 0.0;
     atGoal = false;
-  var request = dutyCycleRequest.withOutput(power * DRUM_OUTPUT_SIGN);
+    var request = dutyCycleRequest.withOutput(power * DRUM_OUTPUT_SIGN);
     a1.setControl(request);
     a2.setControl(request);
     a3.setControl(request);
@@ -103,8 +109,9 @@ public class Drum {
     }
 
     double targetRps = targetRpm / 60.0;
-  var request = velocityRequest.withVelocity(targetRps * DRUM_OUTPUT_SIGN);
-
+  var request = velocityRequest
+    .withVelocity(targetRps * DRUM_OUTPUT_SIGN)
+    .withAcceleration(MAX_ACCEL_RPS2);
     a1.setControl(request);
     a2.setControl(request);
     a3.setControl(request);
@@ -114,10 +121,11 @@ public class Drum {
   public void stop() {
     targetRpm = 0.0;
     atGoal = false;
-    a1.setControl(new NeutralOut());
-    a2.setControl(new NeutralOut());
-    a3.setControl(new NeutralOut());
-    a4.setControl(new NeutralOut());
+    var neutral = new NeutralOut();
+    a1.setControl(neutral);
+    a2.setControl(neutral);
+    a3.setControl(neutral);
+    a4.setControl(neutral);
   }
 
 
@@ -150,12 +158,15 @@ public class Drum {
 
     double newKP = SmartDashboard.getNumber("Drum/Tuning/kP", liveKP);
     double newKV = SmartDashboard.getNumber("Drum/Tuning/kV", liveKV);
+    double newKS = SmartDashboard.getNumber("Drum/Tuning/kS", liveKS);
 
-    if (newKP != liveKP || newKV != liveKV) {
+    if (newKP != liveKP || newKV != liveKV || newKS != liveKS) {
       liveKP = newKP;
       liveKV = newKV;
+      liveKS = newKS;
 
       var newSlot0 = new Slot0Configs()
+          .withKS(liveKS)
           .withKV(liveKV)
           .withKP(liveKP);
       a1.getConfigurator().apply(newSlot0);

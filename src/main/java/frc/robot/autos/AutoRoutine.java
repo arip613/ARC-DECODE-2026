@@ -51,6 +51,10 @@ public class AutoRoutine {
   private final List<Command> pendingParallel = new ArrayList<>();
   private Double pendingTimeoutSeconds = null;
 
+  // Safety timeout: if a drive segment takes longer than this, skip it and move on.
+  // Prevents the entire auto from stalling if the robot gets stuck or pose is wrong.
+  private static final double DRIVE_SAFETY_TIMEOUT_SECS = 8.0;
+
 
   private AutoRoutine(SwerveSubsystem swerve, LocalizationSubsystem localization,
                       FollowPath.Builder pathBuilder, boolean mirror) {
@@ -198,10 +202,7 @@ public class AutoRoutine {
     if (!mirror) {
       return pose;
     }
-    Pose2d mirrored = FieldPoints.mirrorPose(pose);
-    return new Pose2d(
-        mirrored.getTranslation(),
-        mirrored.getRotation().plus(Rotation2d.fromDegrees(180.0)));
+    return FieldPoints.mirrorPose(pose);
   }
 
   /**
@@ -239,6 +240,10 @@ public class AutoRoutine {
 
     Command drive = pathBuilder.build(path);
 
+    // Apply explicit timeout if set, otherwise use safety timeout
+    double timeout = pendingTimeoutSeconds != null ? pendingTimeoutSeconds : DRIVE_SAFETY_TIMEOUT_SECS;
+    pendingTimeoutSeconds = null;
+
     // Attach parallel commands if any
     if (!pendingParallel.isEmpty()) {
       List<Command> parallel = new ArrayList<>(pendingParallel);
@@ -247,17 +252,9 @@ public class AutoRoutine {
       for (Command cmd : parallel) {
         combined = combined.alongWith(cmd);
       }
-      if (pendingTimeoutSeconds != null) {
-        combined = combined.withTimeout(pendingTimeoutSeconds);
-        pendingTimeoutSeconds = null;
-      }
-      steps.add(combined.withName("BLineDriveWithParallel"));
+      steps.add(combined.withTimeout(timeout).withName("BLineDriveWithParallel"));
     } else {
-      if (pendingTimeoutSeconds != null) {
-        drive = drive.withTimeout(pendingTimeoutSeconds);
-        pendingTimeoutSeconds = null;
-      }
-      steps.add(drive.withName("BLineDrive"));
+      steps.add(drive.withTimeout(timeout).withName("BLineDrive"));
     }
 
     pendingWaypoints.clear();

@@ -17,16 +17,15 @@ import frc.robot.util.MathHelpers;
 import frc.robot.util.scheduling.SubsystemPriority;
 import frc.robot.util.state_machines.StateMachine;
 import frc.robot.vision.VisionSubsystem;
+import frc.robot.vision.limelight.LimelightHelpers;
 import frc.robot.vision.results.TagResult;
 
 public class LocalizationSubsystem extends StateMachine<LocalizationState> {
   private static final double MAX_VISION_XY_STD_DEV = 0.12; 
   private static final double MAX_VISION_THETA_STD_DEV = 0.2; 
-  private static final double MAX_STATIONARY_SPEED_MPS = 2;
-  private static final double MAX_STATIONARY_OMEGA_RADPS = 2;
-  private static final int MIN_TAGS_FOR_HEADING = 2;
-  private static final double MAX_HEADING_CORRECTION_DEG = 15;
+  private static final int MIN_TAGS_FOR_HEADING = 8;
   private static final double MAX_HEADING_THETA_STD_DEV = 0.05;
+  private static final String RIGHT_LIMELIGHT_NAME = "limelight-right";
   
 
   private final ImuSubsystem imu;
@@ -34,7 +33,7 @@ public class LocalizationSubsystem extends StateMachine<LocalizationState> {
   private final SwerveSubsystem swerve;
   private final DoubleArrayPublisher botposeBluePub;
   private final DoubleArrayPublisher robotPosePub;
-  private boolean updatePoseWithLeftLimelight = true;
+  private boolean updatePoseWithLeftLimelight = false;
 
   public LocalizationSubsystem(ImuSubsystem imu, VisionSubsystem vision, SwerveSubsystem swerve) {
     super(SubsystemPriority.LOCALIZATION, LocalizationState.DEFAULT_STATE);
@@ -84,12 +83,9 @@ public class LocalizationSubsystem extends StateMachine<LocalizationState> {
   @Override
   public void robotPeriodic() {
     super.robotPeriodic();
-    updatePoseWithLeftLimelight =
-        SmartDashboard.getBoolean("Localization/UseLeftLimelightPose", updatePoseWithLeftLimelight);
+    updatePoseWithLeftLimelight = false;
+    SmartDashboard.putBoolean("Localization/UseLeftLimelightPose", false);
 
-    if (updatePoseWithLeftLimelight) {
-      vision.getLeftTagResult().ifPresent(this::ingestTagResult);
-    }
     vision.getRightTagResult().ifPresent(this::ingestTagResult);
 
     updateHeadingFromVision();
@@ -113,34 +109,14 @@ public class LocalizationSubsystem extends StateMachine<LocalizationState> {
   }
 
   private void updateHeadingFromVision() {
-    var speeds = swerve.getRobotRelativeSpeeds();
-    double linearSpeed = Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond);
-    if (linearSpeed > MAX_STATIONARY_SPEED_MPS
-        || Math.abs(speeds.omegaRadiansPerSecond) > MAX_STATIONARY_OMEGA_RADPS) {
+    var mt1Estimate = FmsSubsystem.isRedAlliance()
+        ? LimelightHelpers.getBotPoseEstimate_wpiRed(RIGHT_LIMELIGHT_NAME)
+        : LimelightHelpers.getBotPoseEstimate_wpiBlue(RIGHT_LIMELIGHT_NAME);
+    if (mt1Estimate == null || mt1Estimate.tagCount < MIN_TAGS_FOR_HEADING) {
       return;
     }
 
-    var left = vision.getLeftTagResult().orElse(null);
-    var right = vision.getRightTagResult().orElse(null);
-
-    TagResult candidate = pickHeadingCandidate(left, right);
-    if (candidate == null) {
-      return;
-    }
-
-    if (candidate.standardDevs() == null
-        || candidate.standardDevs().get(2, 0) > MAX_HEADING_THETA_STD_DEV) {
-      return;
-    }
-
-    double targetHeadingDeg = candidate.pose().getRotation().getDegrees();
-    double currentHeadingDeg = getPose().getRotation().getDegrees();
-    double diff = targetHeadingDeg - currentHeadingDeg;
-    diff = ((diff + 180.0) % 360.0 + 360.0) % 360.0 - 180.0;
-
-    if (Math.abs(diff) > MAX_HEADING_CORRECTION_DEG) {
-      return;
-    }
+    double targetHeadingDeg = mt1Estimate.pose.getRotation().getDegrees();
 
     // Fuse heading through the pose estimator instead of hard-resetting the gyro.
     // Use the current XY with large XY std devs so only the heading component
@@ -152,37 +128,7 @@ public class LocalizationSubsystem extends StateMachine<LocalizationState> {
     var headingStdDevs = edu.wpi.first.math.VecBuilder.fill(
         100.0, 100.0, MAX_HEADING_THETA_STD_DEV);
     swerve.drivetrain.addVisionMeasurement(
-        headingPose, Utils.fpgaToCurrentTime(candidate.timestamp()), headingStdDevs);
-  }
-
-  private TagResult pickHeadingCandidate(TagResult left, TagResult right) {
-    TagResult leftCandidate = isHeadingCandidate(left) ? left : null;
-    TagResult rightCandidate = isHeadingCandidate(right) ? right : null;
-
-    if (leftCandidate == null && rightCandidate == null) {
-      return null;
-    }
-
-    if (leftCandidate == null) {
-      return rightCandidate;
-    }
-    if (rightCandidate == null) {
-      return leftCandidate;
-    }
-
-    double leftStd = leftCandidate.standardDevs().get(0, 0);
-    double rightStd = rightCandidate.standardDevs().get(0, 0);
-    return leftStd <= rightStd ? leftCandidate : rightCandidate;
-  }
-
-  private boolean isHeadingCandidate(TagResult result) {
-    if (result == null) {
-      return false;
-    }
-    if (result.tagCount() < MIN_TAGS_FOR_HEADING) {
-      return false;
-    }
-    return isStdDevAcceptable(result.standardDevs());
+        headingPose, Utils.fpgaToCurrentTime(mt1Estimate.timestampSeconds), headingStdDevs);
   }
 
   private void ingestTagResult(TagResult result) {
@@ -214,12 +160,17 @@ public class LocalizationSubsystem extends StateMachine<LocalizationState> {
   }
 
   public void resetGyro(Rotation2d gyroAngle) {
-    imu.setAngle(gyroAngle.getDegrees());
+    // Only use CTRE's offset math — do NOT call Pigeon2.setYaw().
+    // setYaw is a CAN command that takes 1-2ms to propagate. If resetRotation
+    // reads the gyro before setYaw arrives, the offset is computed against the
+    // stale value. When setYaw finally propagates, the heading jumps to
+    // 2*desired - oldRaw (typically 90° off).
     swerve.drivetrain.resetRotation(gyroAngle);
   }
 
   public void resetPose(Pose2d estimatedPose) {
-    resetGyro(estimatedPose.getRotation());
+    // resetPose sets both position and rotation in one atomic operation.
+    // No separate resetRotation needed — it would just be overwritten.
     swerve.drivetrain.resetPose(estimatedPose);
   }
 
